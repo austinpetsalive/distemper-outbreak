@@ -9,6 +9,13 @@ from pygame.locals import *
 
 import numpy as np
 
+import networkx as nx
+import epydemic
+
+from disease_model import CompartmentedSynchronousDynamics
+
+from copy import copy
+
 flatten = lambda l: [item for sublist in l for item in sublist]
 
 FPS = 5
@@ -63,17 +70,34 @@ class Kennels(object):
                 col_offset += self.node_major_pad
             row_offset += self.node_major_pad + self.node_size
 
-    def draw(self, surf):
+    def get_graph(self):
+        G = nx.Graph()
         for node in self.nodes:
-            draw_box(surf, node['color'], (node['x'], node['y']), [self.node_size, self.node_size])
+            G.add_node(node['node_id'])
+        for edge in self.edges:
+            G.add_edge(edge['start'], edge['end'])
+        return G
+
+    def draw(self, surf, infected_nodes, survived_nodes, died_nodes):
+        for node in self.nodes:
+            color = node['color']
+            if node['node_id'] in infected_nodes:
+                color = (255, 255, 0)
+            elif node['node_id'] in survived_nodes:
+                color = (0, 255, 0)
+            elif node['node_id'] in died_nodes:
+                color = (255, 0, 0)
+            draw_box(surf, color, (node['x'], node['y']), [self.node_size, self.node_size])
         for edge in self.edges:
             draw_line(surf, (255, 0, 0), self.nodes[edge['start']]['center'], self.nodes[edge['end']]['center'])
 
+prev_infected = []
+survived = []
+died = []
 if __name__ == '__main__':
-    kennels = Kennels()
-
-    while True:
-
+    def update(e, t, events, timestepEvents, g, params):
+        global kennels, prev_infected
+        
         for event in pygame.event.get():
             if event.type == QUIT:
                 pygame.quit()
@@ -87,14 +111,24 @@ if __name__ == '__main__':
                     pass
                 elif event.key == K_RIGHT:
                     pass
-
-
+        dist = e.eventDistribution(t)
+        infected_nodes = []
+        for (l, p, ef) in dist:
+            if l._name == 'I':
+                infected_nodes = copy(l.elements())
+        removed_nodes = list(set(prev_infected) - set(infected_nodes))
+        survival_rate = 1 - params['pSurvival']
+        for r in removed_nodes:
+            if np.random.rand() > survival_rate:
+                survived.append(r)
+            else:
+                died.append(r)
         surface.fill((255,255,255))
-        
-        kennels.draw(surface)
+        kennels.draw(surface, infected_nodes=infected_nodes, survived_nodes=survived, died_nodes=died)
+
 
         font = pygame.font.Font(None, 36)
-        text = font.render(str(kennels.num_kennels), 1, (10, 10, 10))
+        text = font.render(str(t), 1, (10, 10, 10))
         textpos = text.get_rect()
         textpos.centerx = 20
         surface.blit(text, textpos)
@@ -103,3 +137,21 @@ if __name__ == '__main__':
         pygame.display.flip()
         pygame.display.update()
         fpsClock.tick(FPS)
+        prev_infected = infected_nodes
+
+    kennels = Kennels()
+    
+    # SIR parameters
+    g = kennels.get_graph()
+    m = epydemic.SIR()
+    sim = CompartmentedSynchronousDynamics(m, g, update)
+
+    # create a parameters dict containing the disease parameters we want
+    params = dict()
+    params['pInfected'] = 0.04
+    params['pInfect'] = 0.99
+    params['pRemove'] = 0.05
+    params['pSurvival'] = 0.3
+
+    # run the simulation
+    sync = sim.set(params).run()
