@@ -11,7 +11,7 @@ class DistemperModel(object):
     def __init__(self, networkx_graph, params):
         self.params = params
         self.graph = networkx_graph
-        self.transition_conflict_policy = 'random' # 'first'
+        self.transition_conflict_policy = 'random' # 'first' for first on state list
         self.reset()
 
     def reset(self):
@@ -19,34 +19,37 @@ class DistemperModel(object):
         self.state_graph = self.init_state_graph()
 
     def change_node_state(self, node, old_state, new_state):
-        node['state'] = new_state
+        node['occupant']['state'] = new_state
         if node['node_id'] in self.state_graph.nodes[old_state]['members']:
             self.state_graph.nodes[old_state]['members'].remove(node['node_id'])
         self.state_graph.nodes[new_state]['members'].append(node['node_id'])
+
+    def build_new_occupant(self, start_state, start_value=0, start_immunity=0.0):
+        return {'value': start_value, 'state': start_state, 'immunity': start_immunity, 'intake_t': self.t}
 
     def susceptible_intake_allocated(self, node):
         return random.random() < self.params['pIntake']
 
     def add_susceptible_animal(self, node):
+        node['occupant'] = self.build_new_occupant(1)
         self.change_node_state(node, 0, 1)
-        node['intake_t'] = self.t
 
     def insusceptible_intake_allocated(self, node):
         return random.random() < 0.0
 
     def add_insusceptible_animal(self, node):
+        node['occupant'] = self.build_new_occupant(2)
         self.change_node_state(node, 0, 2)
-        node['intake_t'] = self.t
 
     def infected_intake_allocated(self, node):
         return random.random() < self.params['pInfect']
 
     def add_infected_animal(self, node):
+        node['occupant'] = self.build_new_occupant(3)
         self.change_node_state(node, 0, 3)
-        node['intake_t'] = self.t
 
     def check_immunity_condition(self, node):
-        if node['immunity'] >= 1:
+        if node['occupant']['immunity'] >= 1:
             return True
         else:
             return False
@@ -55,26 +58,32 @@ class DistemperModel(object):
         self.change_node_state(node, 1, 2)
 
     def check_infection_condition(self, node):
+        depth = len(self.params['infection_kernel'])
+        kernel_function = self.params['infection_kernel_function']
+
+        infection_kernel = np.clip([kernel_function(node, k) for k in self.params['infection_kernel']], 0, 1)
+
+        nodes_at_depth = [[node['node_id']]]
+        nodes_at_depth_nearest = [[node['node_id']]]
+        all_conn_nodes = [node['node_id']]
         edges = [(start, end) for start, end in self.graph.edges]
-        d0_edges = list(set([e[1] for e in edges if e[0] == node['node_id']] + [e[0] for e in edges if e[1] == node['node_id']]) - set([node['node_id']]))
-        d1_edges = list(set(flatten([[e[1] for e in edges if e[0] == e0] for e0 in d0_edges]) + flatten([[e[0] for e in edges if e[1] == e0] for e0 in d0_edges])) - set([node['node_id']]))
+        for d in range(1, depth + 1):
+            prev_depth = nodes_at_depth[-1] # Store previous depth nodes
+            d_edges = list(set(flatten([[e[1] for e in edges if e[0] == e0] for e0 in prev_depth]) + flatten([[e[0] for e in edges if e[1] == e0] for e0 in prev_depth]))) # Get connected nodes
+            nodes_at_depth.append(d_edges) # Add nodes at this depth to depth list
+            nodes_at_depth_nearest.append(list(set(d_edges) - set(all_conn_nodes))) # Add nodes to nearest only if they aren't already included
+            all_conn_nodes.extend(nodes_at_depth_nearest[-1]) # Populate new nodes that have been added on inventory
         
         infected_nodes = self.get_state_node('I')['members']
-        infection_kernel = np.clip([0.5-node['immunity'], 0.25-node['immunity']], 0, 1)
         
         infected = False
-        
-        for d0 in d0_edges:
-            if d0 in infected_nodes:
-                if random.random() < infection_kernel[0]:
-                    infected = True
-                    break
-        if not infected:
-            for d1 in d1_edges:
-                if d1 in infected_nodes:
-                    if random.random() < infection_kernel[1]:
+        for depth, d_edges in enumerate(nodes_at_depth_nearest[1:]):
+            for d in d_edges:
+                if d in infected_nodes:
+                    if random.random() < infection_kernel[depth]:
                         infected = True
                         break
+        
         return infected
     
     def make_infected(self, node):
@@ -93,14 +102,14 @@ class DistemperModel(object):
         self.change_node_state(node, 2, 4)
 
     def check_infected_cured(self, node):
-        if self.t - node['intake_t'] > self.params['refractoryPeriod']:
+        if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
             return random.random() < self.params['pSurvive']
 
     def make_infected_cured(self, node):
         self.change_node_state(node, 3, 2)
 
     def check_infected_death(self, node):
-        if self.t - node['intake_t'] > self.params['refractoryPeriod']:
+        if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
             return random.random() < self.params['pDie']
 
     def make_infected_deceased(self, node):
@@ -110,9 +119,9 @@ class DistemperModel(object):
         return
     
     def update_susceptible(self, node):
-        if node['immunity'] < 1:
+        if node['occupant']['immunity'] < 1:
             # equation for 5 day full immunity
-            node['immunity'] = node['immunity']*1.03 + 0.001
+            node['occupant']['immunity'] = node['occupant']['immunity']*self.params['immunity_growth_factors'][0] + self.params['immunity_growth_factors'][1]
 
     def update_insusceptible(self, node):
         return
@@ -152,9 +161,12 @@ class DistemperModel(object):
         return self.state_graph.nodes[self.id_map[node_id]]
 
     def apply_state_graph(self):
-        for node_num, data in self.graph.nodes(data=True):
+        for _, data in self.graph.nodes(data=True):
             node = data['data']
-            node_state = node['state']
+            if node['occupant'] is None:
+                node_state = 0
+            else:
+                node_state = node['occupant']['state']
             current_state = self.state_graph.nodes[node_state]
             current_state_update_function = current_state['update_function']
             if current_state_update_function:
@@ -176,6 +188,7 @@ class DistemperModel(object):
                     idxs = [x for x, v in enumerate(transitions) if v]
                     choice = random.choice(idxs)
                     f = transition_functions[choice]
+
             f(node)
             
     def update(self, kennel):
@@ -185,13 +198,32 @@ class DistemperModel(object):
     def in_equilibrium(self):
         empty_nodes = self.get_state_node('E')['members']
         susceptible_nodes = self.get_state_node('S')['members']
-        survived_nodes = self.get_state_node('IS')['members']
+        # survived_nodes = self.get_state_node('IS')['members']
         infected_nodes = self.get_state_node('I')['members']
-        died_nodes = self.get_state_node('D')['members']
+        # died_nodes = self.get_state_node('D')['members']
         
         return len(susceptible_nodes) == 0 and len(empty_nodes) == 0 and len(infected_nodes) == 0
 
-
+    def swap_cells(self, node_id0, node_id1):
+        n0 = self.graph.nodes[node_id0]
+        n1 = self.graph.nodes[node_id1]
+        if n0['data']['occupant'] is None:
+            s0 = 0
+        else:
+            s0 = n0['data']['occupant']['state']
+        if n1['data']['occupant'] is None:
+            s1 = 0
+        else:
+            s1 = n1['data']['occupant']['state']
+        # Swap state membership
+        self.state_graph.nodes[s0]['members'].remove(node_id0)
+        self.state_graph.nodes[s1]['members'].append(node_id0)
+        self.state_graph.nodes[s1]['members'].remove(node_id1)
+        self.state_graph.nodes[s0]['members'].append(node_id1)
+        # Swap occupant
+        tmp = n1['data']['occupant']
+        n1['data']['occupant'] = n0['data']['occupant']
+        n0['data']['occupant'] = tmp
 
 class Kennels(object):
     def __init__(self):
@@ -215,9 +247,7 @@ class Kennels(object):
                         'x': col_offset + self.x_offset, 
                         'y': row_offset + self.y_offset, 
                         'color': (0, 0, 0), 
-                        'value': 0,
-                        'state': 0,
-                        'immunity': 0.0
+                        'occupant': None
                         }
                     new_node['center'] = Kennels.get_nodes_center(new_node, self.node_size)
                     self.nodes.append(new_node)

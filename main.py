@@ -13,7 +13,7 @@ import epydemic
 from custom_disease_model import Kennels, DistemperModel
 from aggregate_visualization import AggregatePlot
 
-from copy import copy
+from copy import copy, deepcopy
 
 from threading import Thread
 
@@ -31,6 +31,8 @@ import matplotlib.pyplot as plt
 
 from matplotlib import cm
 
+from interventions import SortIntervention
+
 class Simulation(object):
     
     def __init__(self, params, spatial_visualization=True, aggregate_visualization=True, return_on_equillibrium=False):
@@ -42,7 +44,14 @@ class Simulation(object):
             logging.warning('Warning: No visualizations were set, it is highly recommended you set return_on_equillibrium to True otherwise you will have to manually manage the simulation state.')
 
         self.params = params
-    
+        if 'infection_kernel_function' in self.params and type(self.params['infection_kernel_function']) == str:
+            self.params['infection_kernel_function'] = eval(self.params['infection_kernel_function'])
+        else:
+            self.params['infection_kernel_function'] = lambda node, k: 0.0
+        if 'intervention' in self.params and type(self.params['intervention']) == str:
+            self.params['intervention'] = eval(self.params['intervention'])
+        else:
+            self.params['intervention'] = None
         self.kennels = Kennels()
         self.disease = DistemperModel(self.kennels.get_graph(), self.params)
 
@@ -100,6 +109,8 @@ class Simulation(object):
             self.surface.fill((255,255,255))
 
         if not self.disease.in_equilibrium():
+            if 'intervention' in self.params and self.params['intervention'] != None:
+                self.params['intervention'].update(simulation=self)
             self.disease.update(self.kennels)
         elif self.return_on_equillibrium:
             self.running = False
@@ -138,7 +149,7 @@ class BatchSimulation(object):
     def run(self):
         results = []
         with Pool(self.pool_size) as p:
-            for i in tqdm.tqdm(p.imap_unordered(BatchSimulation.run_simulation, [self.params]*self.runs), total=self.runs):
+            for i in tqdm.tqdm(p.imap_unordered(BatchSimulation.run_simulation, [deepcopy(self.params) for _ in range(0, self.runs)]), total=self.runs):
                 results.append(i)
             p.close()
             p.join()
@@ -155,10 +166,14 @@ def main(batch=False):
             'pSurvive': 0.0025,
             'pDie': 0.0058333333333333,
             'pDieAlternate': 0.0,
-            'refractoryPeriod': 3.0*24.0
+            'refractoryPeriod': 3.0*24.0,
+            'infection_kernel': [0.5, 0.25],
+            'infection_kernel_function': 'lambda node, k: k*(1-node[\'occupant\'][\'immunity\'])',
+            'immunity_growth_factors': [1.03, 0.001], # _[0]*immunity+_[1]
+            'intervention': 'SortIntervention()'
         }
     if not batch:
-        sim = Simulation(params, spatial_visualization=False, return_on_equillibrium=True, aggregate_visualization=False)
+        sim = Simulation(params, spatial_visualization=True, return_on_equillibrium=False, aggregate_visualization=True)
         print(sim.run())
     else:
         runs = 32
@@ -166,10 +181,10 @@ def main(batch=False):
         proportion = True
         colors = [cm.jet(0), cm.jet(0.5)]
         alphas = [0.5, 0.25]
-        labels = ['Rapid Intake', 'Slow Intake']
+        labels = ['Sort Intervention', 'No Intervention']
         
         params1 = copy(params)
-        params1['pIntake'] = 0.1
+        params1['intervention'] = None
         
         results = BatchSimulation(params, runs).run()
 
@@ -193,6 +208,7 @@ def main(batch=False):
 
         plt.xticks(y_pos, objects)
         plt.ylabel('Mean Animal Count')
+        plt.ylim(0, 1)
         plt.title('Average Simulation Performance')
         plt.legend()
 
@@ -201,3 +217,4 @@ def main(batch=False):
 
 if __name__ == '__main__':
     main(batch=True)
+    
