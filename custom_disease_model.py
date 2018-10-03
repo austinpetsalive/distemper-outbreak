@@ -127,7 +127,7 @@ class DistemperModel(object):
         sG = nx.DiGraph()
         self.id_map = {'E': 0, 'S': 1, 'IS': 2, 'I': 3, 'D': 4}
         all_nodes = [int(node) for node in self.graph.nodes]
-        sG.add_node(0, node_id='E', name='Empty Cell', update_function=self.update_empty, members=[all_nodes])
+        sG.add_node(0, node_id='E', name='Empty Cell', update_function=self.update_empty, members=all_nodes)
         sG.add_node(1, node_id='S', name='Susceptible Animal', update_function=self.update_susceptible, members=[])
         sG.add_node(2, node_id='IS', name='Insusceptible Animal', update_function=self.update_insusceptible, members=[])
         sG.add_node(3, node_id='I', name='Infected Animal', update_function=self.update_infected, members=[])
@@ -188,7 +188,7 @@ class DistemperModel(object):
         survived_nodes = self.get_state_node('IS')['members']
         infected_nodes = self.get_state_node('I')['members']
         died_nodes = self.get_state_node('D')['members']
-
+        
         return len(susceptible_nodes) == 0 and len(empty_nodes) == 0 and len(infected_nodes) == 0
 
 
