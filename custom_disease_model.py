@@ -4,6 +4,9 @@ import numpy as np
 import pygame
 import random
 import time
+import json
+
+from networkx.readwrite import json_graph
 
 flatten = lambda l: [item for sublist in l for item in sublist]
 
@@ -225,53 +228,66 @@ class DistemperModel(object):
         n1['data']['occupant'] = n0['data']['occupant']
         n0['data']['occupant'] = tmp
 
+
 class Kennels(object):
-    def __init__(self):
-        self.grid = [[12, 12], [12, 12], [0], [12, 12], [12, 12]]
-        self.num_kennels = np.sum(flatten(self.grid))
-        self.node_size = 10
-        self.node_minor_pad = 1
-        self.node_major_pad = 5
-        self.x_offset = 50
-        self.y_offset = 50
-        self.nodes = []
-        self.edges = []
+    def __init__(self, kennel_layout_definition_file=None):
+        if kennel_layout_definition_file is None:
+            self.G = Kennels.get_sample_kennel_graph()
+            self.save_to_files('test.graph')
+        else:
+            self.load_from_files(kennel_layout_definition_file)
+
+        
+    @staticmethod
+    def get_sample_kennel_graph(grid=[[12, 12], [12, 12], [0], [12, 12], [12, 12]], 
+                                graphics_params={'node_size': 10, 'node_minor_pad': 1, 
+                                'node_major_pad': 5, 'x_offset': 50, 'y_offset': 50}):
+        nodes = []
+        edges = []
         count = 0
         row_offset = 0
-        for row in self.grid:
+        for row in grid:
             col_offset = 0
             for segment_length in row:
                 for i in range(0, segment_length):
                     new_node = {
                         'node_id': count, 
-                        'x': col_offset + self.x_offset, 
-                        'y': row_offset + self.y_offset, 
+                        'x': col_offset + graphics_params['x_offset'], 
+                        'y': row_offset + graphics_params['y_offset'], 
                         'color': (0, 0, 0), 
                         'occupant': None
                         }
-                    new_node['center'] = Kennels.get_nodes_center(new_node, self.node_size)
-                    self.nodes.append(new_node)
+                    new_node['center'] = Kennels.get_nodes_center(new_node, graphics_params['node_size'])
+                    nodes.append(new_node)
                     if i != segment_length - 1:
-                        self.edges.append({'start': count, 'end': count + 1})
+                        edges.append({'start': count, 'end': count + 1})
                     count += 1
-                    col_offset += self.node_minor_pad + self.node_size
-                col_offset += self.node_major_pad
-            row_offset += self.node_major_pad + self.node_size
-        self.G = nx.Graph()
-        for node in self.nodes:
-            self.G.add_node(node['node_id'], data=node)
-        for edge in self.edges:
-            self.G.add_edge(edge['start'], edge['end'])
+                    col_offset += graphics_params['node_minor_pad'] + graphics_params['node_size']
+                col_offset += graphics_params['node_major_pad']
+            row_offset += graphics_params['node_major_pad'] + graphics_params['node_size']
+        G = nx.Graph()
+        for node in nodes:
+            G.add_node(node['node_id'], data=node)
+        for edge in edges:
+            G.add_edge(edge['start'], edge['end'])
 
-    @staticmethod
-    def load_graph_from_file(self, filepath):
-        with open(filepath, 'wb') as fp:
-            pkl.load(fp, self.get_graph())
+        G.graphics_params = graphics_params
+        return G
 
-    @staticmethod
-    def save_graph_to_file(self, filepath):
-        with open(filepath, 'wb') as fp:
-            pkl.dump(fp, self.get_graph())
+    def load_from_files(self, filepath):
+        with open(filepath, 'r') as fp:
+            data = fp.read()
+            data = json.loads(data)
+            graphics_params = data.pop('graphics_params', None)
+            self.G = json_graph.node_link_graph(data)
+            self.G.graphics_params = graphics_params
+            
+
+    def save_to_files(self, filepath, indent=1):
+        data = nx.node_link_data(self.G)
+        data['graphics_params'] = self.G.graphics_params
+        with open(filepath, 'w') as fp:
+            json.dump(data, fp, indent=indent)
 
     def get_graph(self):
         return self.G
@@ -299,7 +315,8 @@ class Kennels(object):
         infected_nodes = disease.get_state_node('I')['members']
         died_nodes = disease.get_state_node('D')['members']
         
-        for node in self.nodes:
+        for node_id in self.G.nodes:
+            node = self.G.nodes[node_id]['data']
             color = node['color']
             if node['node_id'] in susceptible_nodes:
                 color = (0, 0, 255)
@@ -311,9 +328,9 @@ class Kennels(object):
                 color = (0, 255, 0)
             elif node['node_id'] in died_nodes:
                 color = (255, 0, 0)
-            Kennels.draw_box(surf, color, (node['x'], node['y']), [self.node_size, self.node_size])
-        for edge in self.edges:
-            Kennels.draw_line(surf, (255, 0, 0), self.nodes[edge['start']]['center'], self.nodes[edge['end']]['center'])
+            Kennels.draw_box(surf, color, (node['x'], node['y']), [self.G.graphics_params['node_size'], self.G.graphics_params['node_size']])
+        for edge in self.G.edges:
+            Kennels.draw_line(surf, (255, 0, 0), self.G.nodes[edge[0]]['data']['center'], self.G.nodes[edge[1]]['data']['center'])
 
 if __name__ == '__main__':
     from main import main
