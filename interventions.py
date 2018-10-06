@@ -19,9 +19,9 @@ class SortIntervention(object):
             data = graph.nodes[node]['data']
             if data['occupant'] is None:
                 node_weights.append(1)
-            elif data['occupant']['state'] == 3: # Infected
+            elif data['occupant']['state'] == 4: # Infected and Symptomatic
                 node_weights.append(2)
-            elif data['occupant']['state'] != 1: # Not susceptible
+            elif data['occupant']['state'] == 2 or data['occupant']['state'] == 0 or data['occupant']['state'] == 5: # Not susceptible/empty/died
                 node_weights.append(1)
             else:
                 node_weights.append(data['occupant']['immunity'])

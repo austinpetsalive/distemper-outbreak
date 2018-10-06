@@ -19,8 +19,13 @@ class DistemperModel(object):
 
     def reset(self):
         self.t = 0
+        self.total_intake = 0
+        self.total_infected = 0
+        self.total_died = 0
+        self.total_discharged = 0
         self.state_graph = self.init_state_graph()
 
+    # General purpose functions
     def change_node_state(self, node, old_state, new_state):
         node['occupant']['state'] = new_state
         if node['node_id'] in self.state_graph.nodes[old_state]['members']:
@@ -28,29 +33,41 @@ class DistemperModel(object):
         self.state_graph.nodes[new_state]['members'].append(node['node_id'])
 
     def build_new_occupant(self, start_state, start_value=0, start_immunity=0.0):
-        return {'value': start_value, 'state': start_state, 'immunity': start_immunity, 'intake_t': self.t}
+        self.total_intake += 1
+        return {'value': start_value, 'state': start_state, 'immunity': start_immunity, 'intake_t': self.t}    
 
+    # From Empty Functions
     def susceptible_intake_allocated(self, node):
         return random.random() < self.params['pIntake']
 
     def add_susceptible_animal(self, node):
-        node['occupant'] = self.build_new_occupant(1)
-        self.change_node_state(node, 0, 1)
+        node['occupant'] = self.build_new_occupant(self.id_map['S'])
+        self.change_node_state(node, self.id_map['E'], self.id_map['S'])
 
     def insusceptible_intake_allocated(self, node):
         return random.random() < 0.0
 
     def add_insusceptible_animal(self, node):
-        node['occupant'] = self.build_new_occupant(2)
-        self.change_node_state(node, 0, 2)
+        node['occupant'] = self.build_new_occupant(self.id_map['IS'])
+        self.change_node_state(node, self.id_map['E'], self.id_map['IS'])
 
     def infected_intake_allocated(self, node):
         return random.random() < self.params['pInfect']
 
     def add_infected_animal(self, node):
-        node['occupant'] = self.build_new_occupant(3)
-        self.change_node_state(node, 0, 3)
+        self.total_infected += 1
+        node['occupant'] = self.build_new_occupant(self.id_map['I'])
+        self.change_node_state(node, self.id_map['E'], self.id_map['I'])
 
+    def symptomatic_intake_allocated(self, node):
+        return random.random() < self.params['pSymptomaticIntake']
+
+    def add_symptomatic_animal(self, node):
+        self.total_infected += 1
+        node['occupant'] = self.build_new_occupant(self.id_map['SY'])
+        self.change_node_state(node, self.id_map['E'], self.id_map['SY'])
+
+    # From Susceptible Functions
     def check_immunity_condition(self, node):
         if node['occupant']['immunity'] >= 1:
             return True
@@ -58,7 +75,7 @@ class DistemperModel(object):
             return False
     
     def make_immune(self, node):
-        self.change_node_state(node, 1, 2)
+        self.change_node_state(node, self.id_map['S'], self.id_map['IS'])
 
     def check_infection_condition(self, node):
         depth = len(self.params['infection_kernel'])
@@ -77,7 +94,7 @@ class DistemperModel(object):
             nodes_at_depth_nearest.append(list(set(d_edges) - set(all_conn_nodes))) # Add nodes to nearest only if they aren't already included
             all_conn_nodes.extend(nodes_at_depth_nearest[-1]) # Populate new nodes that have been added on inventory
         
-        infected_nodes = self.get_state_node('I')['members']
+        infected_nodes = self.get_state_node('I')['members'] + self.get_state_node('SY')['members']
         
         infected = False
         for depth, d_edges in enumerate(nodes_at_depth_nearest[1:]):
@@ -90,34 +107,75 @@ class DistemperModel(object):
         return infected
     
     def make_infected(self, node):
-        self.change_node_state(node, 1, 3)
+        self.total_infected += 1
+        self.change_node_state(node, self.id_map['S'], self.id_map['I'])
 
     def check_susceptible_death(self, node):
         return random.random() < self.params['pDieAlternate']
 
     def make_susceptible_deceased(self, node):
-        self.change_node_state(node, 1, 4)
+        self.change_node_state(node, self.id_map['S'], self.id_map['D'])
 
+    # From Insusceptible Functions
     def check_insusceptible_death(self, node):
         return random.random() < self.params['pDieAlternate']
 
     def make_insusceptible_deceased(self, node):
-        self.change_node_state(node, 2, 4)
+        self.change_node_state(node, self.id_map['IS'], self.id_map['D'])
+    
+    def check_insusceptible_discharge(self, node):
+        return random.random() < 1.0
 
+    def make_insusceptible_discharged(self, node):
+        self.total_discharged += 1
+        self.change_node_state(node, self.id_map['IS'], self.id_map['E'])
+
+    # From Infected Functions
     def check_infected_cured(self, node):
         if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
             return random.random() < self.params['pSurvive']
 
     def make_infected_cured(self, node):
-        self.change_node_state(node, 3, 2)
+        self.change_node_state(node, self.id_map['I'], self.id_map['IS'])
 
     def check_infected_death(self, node):
         if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
             return random.random() < self.params['pDie']
 
     def make_infected_deceased(self, node):
-        self.change_node_state(node, 3, 4)
+        self.change_node_state(node, self.id_map['I'], self.id_map['D'])
+    
+    def check_infected_symptomatic(self, node):
+        if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
+            return random.random() < self.params['pSymptomatic']
 
+    def make_infected_symptomatic(self, node):
+        self.change_node_state(node, self.id_map['I'], self.id_map['SY'])
+
+    # From Symptomatic
+    def check_symptomatic_cured(self, node):
+        if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
+            return random.random() < self.params['pSurvive']
+
+    def make_symptomatic_cured(self, node):
+        self.change_node_state(node, self.id_map['SY'], self.id_map['IS'])
+
+    def check_symptomatic_died(self, node):
+        if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
+            return random.random() < self.params['pDie']
+
+    def make_symptomatic_died(self, node):
+        self.change_node_state(node, self.id_map['SY'], self.id_map['D'])
+
+    # From Deceased
+    def check_died_emptied(self, node):
+        self.total_died += 1
+        return random.random() < 1.0
+
+    def make_died_emptied(self, node):
+        self.change_node_state(node, self.id_map['D'], self.id_map['E'])
+
+    # State Update Functions
     def update_empty(self, node):
         return
     
@@ -135,28 +193,40 @@ class DistemperModel(object):
     def update_deceased(self, node):
         return
 
+    def update_symptomatic(self, node):
+        return
+
     def init_state_graph(self):
         sG = nx.DiGraph()
-        self.id_map = {'E': 0, 'S': 1, 'IS': 2, 'I': 3, 'D': 4}
+        self.id_map = {'E': 0, 'S': 1, 'IS': 2, 'I': 3, 'SY': 4, 'D': 5}
         all_nodes = [int(node) for node in self.graph.nodes]
         sG.add_node(0, node_id='E', name='Empty Cell', update_function=self.update_empty, members=all_nodes)
         sG.add_node(1, node_id='S', name='Susceptible Animal', update_function=self.update_susceptible, members=[])
         sG.add_node(2, node_id='IS', name='Insusceptible Animal', update_function=self.update_insusceptible, members=[])
         sG.add_node(3, node_id='I', name='Infected Animal', update_function=self.update_infected, members=[])
-        sG.add_node(4, node_id='D', name='Deceased Animal', update_function=self.update_deceased, members=[])
+        sG.add_node(4, node_id='SY', name='Symptomatic', update_function=self.update_symptomatic, members=[])
+        sG.add_node(5, node_id='D', name='Deceased Animal', update_function=self.update_deceased, members=[])
+        
         
         sG.add_edge(0, 1, transition_criteria_function=self.susceptible_intake_allocated, transition_function=self.add_susceptible_animal) # New susceptible animal
         sG.add_edge(0, 2, transition_criteria_function=self.insusceptible_intake_allocated, transition_function=self.add_insusceptible_animal) # New insusceptible animal
         sG.add_edge(0, 3, transition_criteria_function=self.infected_intake_allocated, transition_function=self.add_infected_animal) # New infected animal
+        sG.add_edge(0, 4, transition_criteria_function=self.symptomatic_intake_allocated, transition_function=self.add_symptomatic_animal) # New infected animal
         
         sG.add_edge(1, 2, transition_criteria_function=self.check_immunity_condition, transition_function=self.make_immune) # Animal gains immunity
         sG.add_edge(1, 3, transition_criteria_function=self.check_infection_condition, transition_function=self.make_infected) # Animal becomes infected
-        sG.add_edge(1, 4, transition_criteria_function=self.check_susceptible_death, transition_function=self.make_susceptible_deceased) # Susceptible animal dies from other causes
+        sG.add_edge(1, 5, transition_criteria_function=self.check_susceptible_death, transition_function=self.make_susceptible_deceased) # Susceptible animal dies from other causes
 
-        sG.add_edge(2, 4, transition_criteria_function=self.check_insusceptible_death, transition_function=self.make_insusceptible_deceased) # Insusceptible animal dies from other causes
+        sG.add_edge(2, 0, transition_criteria_function=self.check_insusceptible_discharge, transition_function=self.make_insusceptible_discharged) # Insusceptible animal dies from other causes
+        sG.add_edge(2, 5, transition_criteria_function=self.check_insusceptible_death, transition_function=self.make_insusceptible_deceased) # Insusceptible animal dies from other causes
 
         sG.add_edge(3, 2, transition_criteria_function=self.check_infected_cured, transition_function=self.make_infected_cured) # Infected dog dies
-        sG.add_edge(3, 4, transition_criteria_function=self.check_infected_death, transition_function=self.make_infected_deceased) # Infected dog dies
+        sG.add_edge(3, 4, transition_criteria_function=self.check_infected_symptomatic, transition_function=self.make_infected_symptomatic) # Infected dog dies
+
+        sG.add_edge(4, 2, transition_criteria_function=self.check_symptomatic_cured, transition_function=self.make_symptomatic_cured) # Infected dog dies
+        sG.add_edge(4, 5, transition_criteria_function=self.check_symptomatic_died, transition_function=self.make_symptomatic_died) # Infected dog dies
+
+        sG.add_edge(5, 0, transition_criteria_function=self.check_died_emptied, transition_function=self.make_died_emptied) # Infected dog dies
 
         return sG
 
@@ -203,9 +273,10 @@ class DistemperModel(object):
         susceptible_nodes = self.get_state_node('S')['members']
         # survived_nodes = self.get_state_node('IS')['members']
         infected_nodes = self.get_state_node('I')['members']
+        symptomatic_nodes = self.get_state_node('SY')['members']
         # died_nodes = self.get_state_node('D')['members']
         
-        return len(susceptible_nodes) == 0 and len(empty_nodes) == 0 and len(infected_nodes) == 0
+        return len(susceptible_nodes) == 0 and len(empty_nodes) == 0 and len(infected_nodes) == 0 and len(symptomatic_nodes) == 0
 
     def swap_cells(self, node_id0, node_id1):
         n0 = self.graph.nodes[node_id0]
@@ -313,6 +384,7 @@ class Kennels(object):
         susceptible_nodes = disease.get_state_node('S')['members']
         survived_nodes = disease.get_state_node('IS')['members']
         infected_nodes = disease.get_state_node('I')['members']
+        symptomatic_nodes = disease.get_state_node('SY')['members']
         died_nodes = disease.get_state_node('D')['members']
         
         for node_id in self.G.nodes:
@@ -326,6 +398,8 @@ class Kennels(object):
                 color = (255, 255, 0)
             elif node['node_id'] in survived_nodes:
                 color = (0, 255, 0)
+            elif node['node_id'] in symptomatic_nodes:
+                color = (255, 165, 0)
             elif node['node_id'] in died_nodes:
                 color = (255, 0, 0)
             Kennels.draw_box(surf, color, (node['x'], node['y']), [self.G.graphics_params['node_size'], self.G.graphics_params['node_size']])

@@ -57,10 +57,10 @@ class AggregatePlot(object):
         infected_nodes = len(self.disease.get_state_node('I')['members'])
         died_nodes = len(self.disease.get_state_node('D')['members'])
 
-        self.data['pop'].append(susceptible_nodes+survived_nodes+infected_nodes)
-        self.data['inf'].append(infected_nodes)
-        self.data['imm'].append(survived_nodes)
-        self.data['die'].append(died_nodes)
+        self.data['pop'].append(self.disease.total_intake)#susceptible_nodes+survived_nodes+infected_nodes)
+        self.data['inf'].append(self.disease.total_infected)#infected_nodes)
+        self.data['imm'].append(self.disease.total_discharged)#survived_nodes)
+        self.data['die'].append(self.disease.total_died)#died_nodes)
 
         for curve, data in zip(self.curves, [self.data['pop'], self.data['inf'], self.data['imm'], self.data['die']]):
             curve.setData(data)

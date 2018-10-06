@@ -112,12 +112,11 @@ class Simulation(object):
             if 'intervention' in self.params and self.params['intervention'] != None:
                 self.params['intervention'].update(simulation=self)
             self.disease.update(self.kennels)
+            for hook in self.update_hooks:
+                hook()
         elif self.return_on_equillibrium:
             self.running = False
             return
-
-        for hook in self.update_hooks:
-            hook()
         
         if self.spatial_visualization:
             self.kennels.draw(self.surface, self.disease)
@@ -164,6 +163,8 @@ def main(batch=False):
             'pIntake': 0.25,
             'pInfect': 0.04,
             'pSurvive': 0.0025,
+            'pSymptomaticIntake': 0.02,
+            'pSymptomatic': 0.004,
             'pDie': 0.0058333333333333,
             'pDieAlternate': 0.0,
             'refractoryPeriod': 3.0*24.0,
