@@ -1,3 +1,4 @@
 {
-    "python.pythonPath": "C:\\Users\\Kevin\\Anaconda3\\envs\\distemper\\python.exe"
+    "python.pythonPath": "C:\\Users\\Kevin\\Anaconda3\\envs\\distemper\\python.exe",
+    "python.linting.pylintArgs" : [ "--extension-pkg-whitelist=matplotlib.cm,pygame,copy" ] 
 }

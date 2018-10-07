@@ -1,239 +1,375 @@
-import pickle as pkl
-import networkx as nx
+"""This module contains the critical disease and kennel objects.
+"""
+
+import json
+import logging
+import sys
+
 import numpy as np
 import pygame
-import random
-import time
-import json
-
+import networkx as nx
 from networkx.readwrite import json_graph
 
-flatten = lambda l: [item for sublist in l for item in sublist]
+FLATTEN = lambda l: [item for sublist in l for item in sublist]
 
 class DistemperModel(object):
+    '''This class models the canine distemper virus via a non-deterministic state machine
+    operating on each node of a graph a la a cellular automata.
+    '''
+
     def __init__(self, networkx_graph, params):
         self.params = params
         self.graph = networkx_graph
-        self.transition_conflict_policy = 'random' # 'first' for first on state list
+        self.id_map = {}
         self.reset()
 
     def reset(self):
-        self.t = 0
+        '''This function resets the module.
+        '''
+
+        self.time = 0
         self.total_intake = 0
         self.total_infected = 0
         self.total_died = 0
         self.total_discharged = 0
         self.state_graph = self.init_state_graph()
 
-    # General purpose functions
     def change_node_state(self, node, old_state, new_state):
+        '''This function changes a node's state, adjusting state tracking variables as well.
+
+        Arguments:
+            node {int} -- the node number
+            old_state {str} -- the start node id string
+            new_state {str} -- the end node id string
+        '''
+
+        if new_state == self.id_map['I'] or \
+           (old_state == self.id_map['E'] and \
+           new_state == self.id_map['SY']):
+            self.total_infected += 1
+        elif new_state == self.id_map['D']:
+            self.total_died += 1
+        elif old_state == self.id_map['IS'] and new_state == self.id_map['E']:
+            self.total_discharged += 1
         node['occupant']['state'] = new_state
         if node['node_id'] in self.state_graph.nodes[old_state]['members']:
             self.state_graph.nodes[old_state]['members'].remove(node['node_id'])
         self.state_graph.nodes[new_state]['members'].append(node['node_id'])
 
     def build_new_occupant(self, start_state, start_value=0, start_immunity=0.0):
+        '''This function creates a new occupant for a node.
+
+        Arguments:
+            start_state {str} -- the node id string
+
+        Keyword Arguments:
+            start_value {int} -- the starting value (currently unused; default: {0})
+            start_immunity {float} -- the starting immunity (default: {0.0})
+
+        Returns:
+            dict -- a dictionary of the occupant values
+        '''
+
         self.total_intake += 1
-        return {'value': start_value, 'state': start_state, 'immunity': start_immunity, 'intake_t': self.t}    
+        return {'value': start_value,
+                'state': start_state,
+                'immunity': start_immunity,
+                'intake_t': self.time}
 
-    # From Empty Functions
-    def susceptible_intake_allocated(self, node):
-        return random.random() < self.params['pIntake']
+    def get_probability_parameter_with_refractory(self, node,
+                                                  parameter_name=None,
+                                                  refractory_parameter=None,
+                                                  occupant_parameter=None):
+        '''This function returns the probability of an event given a refractory period from intake.
+        This function will return 0.0 if any Keyword input is None
 
-    def add_susceptible_animal(self, node):
-        node['occupant'] = self.build_new_occupant(self.id_map['S'])
-        self.change_node_state(node, self.id_map['E'], self.id_map['S'])
+        Arguments:
+            node {int} -- the node id
 
-    def insusceptible_intake_allocated(self, node):
-        return random.random() < 0.0
+        Keyword Arguments:
+            parameter_name {str} -- the probability parameter name (default: {None})
+            refractory_parameter {str} -- the refractory parameter name (default: {None})
+            occupant_parameter {str} -- the occupant parameter to compare to current time
+            (default: {None})
 
-    def add_insusceptible_animal(self, node):
-        node['occupant'] = self.build_new_occupant(self.id_map['IS'])
-        self.change_node_state(node, self.id_map['E'], self.id_map['IS'])
+        Returns:
+            float -- the probability of an event given the refractory period
+        '''
 
-    def infected_intake_allocated(self, node):
-        return random.random() < self.params['pInfect']
+        if parameter_name and refractory_parameter and occupant_parameter:
+            if self.time - node['occupant'][occupant_parameter] > self.params[refractory_parameter]:
+                return self.params[parameter_name]
+        return 0.0
 
-    def add_infected_animal(self, node):
-        self.total_infected += 1
-        node['occupant'] = self.build_new_occupant(self.id_map['I'])
-        self.change_node_state(node, self.id_map['E'], self.id_map['I'])
+    def add_new_animal(self, node, state=None):
+        '''Add a new animal to the simulation at a given node.
+        If the starting state is None, nothing will happen in this function.
 
-    def symptomatic_intake_allocated(self, node):
-        return random.random() < self.params['pSymptomaticIntake']
+        Arguments:
+            node {int} -- the node id
 
-    def add_symptomatic_animal(self, node):
-        self.total_infected += 1
-        node['occupant'] = self.build_new_occupant(self.id_map['SY'])
-        self.change_node_state(node, self.id_map['E'], self.id_map['SY'])
+        Keyword Arguments:
+            state {str} -- the starting state (default: {None})
+        '''
 
-    # From Susceptible Functions
-    def check_immunity_condition(self, node):
-        if node['occupant']['immunity'] >= 1:
-            return True
-        else:
-            return False
-    
-    def make_immune(self, node):
-        self.change_node_state(node, self.id_map['S'], self.id_map['IS'])
+        if state:
+            node['occupant'] = self.build_new_occupant(self.id_map[state])
+            self.change_node_state(node, self.id_map['E'], self.id_map[state])
 
-    def check_infection_condition(self, node):
+    def get_infection_probability(self, node):
+        '''Gets the probability of infection at a node given the kernel function and graph.
+
+        Arguments:
+            node {int} -- the node id of the target node
+
+        Returns:
+            float -- the probability of infection
+        '''
+
         depth = len(self.params['infection_kernel'])
         kernel_function = self.params['infection_kernel_function']
 
-        infection_kernel = np.clip([kernel_function(node, k) for k in self.params['infection_kernel']], 0, 1)
+        infection_kernel = np.clip([kernel_function(node, k) for
+                                    k in self.params['infection_kernel']],
+                                   0, 1)
 
         nodes_at_depth = [[node['node_id']]]
         nodes_at_depth_nearest = [[node['node_id']]]
         all_conn_nodes = [node['node_id']]
         edges = [(start, end) for start, end in self.graph.edges]
-        for d in range(1, depth + 1):
-            prev_depth = nodes_at_depth[-1] # Store previous depth nodes
-            d_edges = list(set(flatten([[e[1] for e in edges if e[0] == e0] for e0 in prev_depth]) + flatten([[e[0] for e in edges if e[1] == e0] for e0 in prev_depth]))) # Get connected nodes
-            nodes_at_depth.append(d_edges) # Add nodes at this depth to depth list
-            nodes_at_depth_nearest.append(list(set(d_edges) - set(all_conn_nodes))) # Add nodes to nearest only if they aren't already included
-            all_conn_nodes.extend(nodes_at_depth_nearest[-1]) # Populate new nodes that have been added on inventory
-        
+        for _ in range(1, depth + 1):
+            # Store previous depth nodes
+            prev_depth = nodes_at_depth[-1]
+            # Get connected nodes
+            d_edges = list(set(FLATTEN([[e[1] for e in edges if e[0] == e0] for e0 in prev_depth]) +
+                               FLATTEN([[e[0] for e in edges if e[1] == e0] for e0 in prev_depth])))
+            # Add nodes at this depth to depth list
+            nodes_at_depth.append(d_edges)
+            # Add nodes to nearest only if they aren't already included
+            nodes_at_depth_nearest.append(list(set(d_edges) - set(all_conn_nodes)))
+            # Populate new nodes that have been added on inventory
+            all_conn_nodes.extend(nodes_at_depth_nearest[-1])
+
         infected_nodes = self.get_state_node('I')['members'] + self.get_state_node('SY')['members']
-        
-        infected = False
+
+        probability_list = [] # Probability each event happens
+
         for depth, d_edges in enumerate(nodes_at_depth_nearest[1:]):
-            for d in d_edges:
-                if d in infected_nodes:
-                    if random.random() < infection_kernel[depth]:
-                        infected = True
-                        break
-        
-        return infected
-    
-    def make_infected(self, node):
-        self.total_infected += 1
-        self.change_node_state(node, self.id_map['S'], self.id_map['I'])
+            for node_at_depth in d_edges:
+                if node_at_depth in infected_nodes:
+                    probability_list.append(infection_kernel[depth])
 
-    def check_susceptible_death(self, node):
-        return random.random() < self.params['pDieAlternate']
+        return 1 - np.product([1-p for p in probability_list]) # Probability any event happens
 
-    def make_susceptible_deceased(self, node):
-        self.change_node_state(node, self.id_map['S'], self.id_map['D'])
-
-    # From Insusceptible Functions
-    def check_insusceptible_death(self, node):
-        return random.random() < self.params['pDieAlternate']
-
-    def make_insusceptible_deceased(self, node):
-        self.change_node_state(node, self.id_map['IS'], self.id_map['D'])
-    
-    def check_insusceptible_discharge(self, node):
-        return random.random() < 1.0
-
-    def make_insusceptible_discharged(self, node):
-        self.total_discharged += 1
-        self.change_node_state(node, self.id_map['IS'], self.id_map['E'])
-
-    # From Infected Functions
-    def check_infected_cured(self, node):
-        if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
-            return random.random() < self.params['pSurvive']
-
-    def make_infected_cured(self, node):
-        self.change_node_state(node, self.id_map['I'], self.id_map['IS'])
-
-    def check_infected_death(self, node):
-        if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
-            return random.random() < self.params['pDie']
-
-    def make_infected_deceased(self, node):
-        self.change_node_state(node, self.id_map['I'], self.id_map['D'])
-    
-    def check_infected_symptomatic(self, node):
-        if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
-            return random.random() < self.params['pSymptomatic']
-
-    def make_infected_symptomatic(self, node):
-        self.change_node_state(node, self.id_map['I'], self.id_map['SY'])
-
-    # From Symptomatic
-    def check_symptomatic_cured(self, node):
-        if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
-            return random.random() < self.params['pSurvive']
-
-    def make_symptomatic_cured(self, node):
-        self.change_node_state(node, self.id_map['SY'], self.id_map['IS'])
-
-    def check_symptomatic_died(self, node):
-        if self.t - node['occupant']['intake_t'] > self.params['refractoryPeriod']:
-            return random.random() < self.params['pDie']
-
-    def make_symptomatic_died(self, node):
-        self.change_node_state(node, self.id_map['SY'], self.id_map['D'])
-
-    # From Deceased
-    def check_died_emptied(self, node):
-        self.total_died += 1
-        return random.random() < 1.0
-
-    def make_died_emptied(self, node):
-        self.change_node_state(node, self.id_map['D'], self.id_map['E'])
-
-    # State Update Functions
-    def update_empty(self, node):
-        return
-    
     def update_susceptible(self, node):
+        '''This function updates the immunity factor for susceptible animals.
+
+        Arguments:
+            node {int} -- the node id
+        '''
+
         if node['occupant']['immunity'] < 1:
             # equation for 5 day full immunity
-            node['occupant']['immunity'] = node['occupant']['immunity']*self.params['immunity_growth_factors'][0] + self.params['immunity_growth_factors'][1]
+            node['occupant']['immunity'] = node['occupant']['immunity'] * \
+                                           self.params['immunity_growth_factors'][0] + \
+                                           self.params['immunity_growth_factors'][1]
 
-    def update_insusceptible(self, node):
-        return
-
-    def update_infected(self, node):
-        return
-
-    def update_deceased(self, node):
-        return
-
-    def update_symptomatic(self, node):
-        return
 
     def init_state_graph(self):
-        sG = nx.DiGraph()
+        '''This function initializes the state machine graph.
+
+        Returns:
+            nx.DiGraph -- the state machine graph representing the simulation logic
+        '''
+
+        state_graph = nx.DiGraph()
         self.id_map = {'E': 0, 'S': 1, 'IS': 2, 'I': 3, 'SY': 4, 'D': 5}
         all_nodes = [int(node) for node in self.graph.nodes]
-        sG.add_node(0, node_id='E', name='Empty Cell', update_function=self.update_empty, members=all_nodes)
-        sG.add_node(1, node_id='S', name='Susceptible Animal', update_function=self.update_susceptible, members=[])
-        sG.add_node(2, node_id='IS', name='Insusceptible Animal', update_function=self.update_insusceptible, members=[])
-        sG.add_node(3, node_id='I', name='Infected Animal', update_function=self.update_infected, members=[])
-        sG.add_node(4, node_id='SY', name='Symptomatic', update_function=self.update_symptomatic, members=[])
-        sG.add_node(5, node_id='D', name='Deceased Animal', update_function=self.update_deceased, members=[])
-        
-        
-        sG.add_edge(0, 1, transition_criteria_function=self.susceptible_intake_allocated, transition_function=self.add_susceptible_animal) # New susceptible animal
-        sG.add_edge(0, 2, transition_criteria_function=self.insusceptible_intake_allocated, transition_function=self.add_insusceptible_animal) # New insusceptible animal
-        sG.add_edge(0, 3, transition_criteria_function=self.infected_intake_allocated, transition_function=self.add_infected_animal) # New infected animal
-        sG.add_edge(0, 4, transition_criteria_function=self.symptomatic_intake_allocated, transition_function=self.add_symptomatic_animal) # New infected animal
-        
-        sG.add_edge(1, 2, transition_criteria_function=self.check_immunity_condition, transition_function=self.make_immune) # Animal gains immunity
-        sG.add_edge(1, 3, transition_criteria_function=self.check_infection_condition, transition_function=self.make_infected) # Animal becomes infected
-        sG.add_edge(1, 5, transition_criteria_function=self.check_susceptible_death, transition_function=self.make_susceptible_deceased) # Susceptible animal dies from other causes
+        state_graph.add_node(0, node_id='E', name='Empty Cell',
+                             update_function=None, members=all_nodes)
+        state_graph.add_node(1, node_id='S', name='Susceptible Animal',
+                             update_function=self.update_susceptible, members=[])
+        state_graph.add_node(2, node_id='IS', name='Insusceptible Animal',
+                             update_function=None, members=[])
+        state_graph.add_node(3, node_id='I', name='Infected Animal',
+                             update_function=None, members=[])
+        state_graph.add_node(4, node_id='SY', name='Symptomatic',
+                             update_function=None, members=[])
+        state_graph.add_node(5, node_id='D', name='Deceased Animal',
+                             update_function=None, members=[])
 
-        sG.add_edge(2, 0, transition_criteria_function=self.check_insusceptible_discharge, transition_function=self.make_insusceptible_discharged) # Insusceptible animal dies from other causes
-        sG.add_edge(2, 5, transition_criteria_function=self.check_insusceptible_death, transition_function=self.make_insusceptible_deceased) # Insusceptible animal dies from other causes
+        assert self.params["pSusceptibleIntake"] + \
+               self.params["pInsusceptibleIntake"] + \
+               self.params["pInfectIntake"] + \
+               self.params["pSymptomaticIntake"] <= 1.0, \
+            "pSusceptibleIntake + pInsusceptibleIntake + pInfectIntake + " + \
+            "pSymptomaticIntake must be less than 1.0"
 
-        sG.add_edge(3, 2, transition_criteria_function=self.check_infected_cured, transition_function=self.make_infected_cured) # Infected dog dies
-        sG.add_edge(3, 4, transition_criteria_function=self.check_infected_symptomatic, transition_function=self.make_infected_symptomatic) # Infected dog dies
+        # New susceptible animal
+        state_graph.add_edge(0, 1,
+                             transition_criteria_function=lambda node:
+                             self.params["pSusceptibleIntake"],
+                             transition_function=lambda node: self.add_new_animal(node, 'S'))
+        # New insusceptible animal
+        state_graph.add_edge(0, 2,
+                             transition_criteria_function=lambda node:
+                             self.params["pInsusceptibleIntake"],
+                             transition_function=lambda node: self.add_new_animal(node, 'IS'))
+        # New infected animal
+        state_graph.add_edge(0, 3,
+                             transition_criteria_function=lambda node:
+                             self.params["pInfectIntake"],
+                             transition_function=lambda node: self.add_new_animal(node, 'I'))
+        # New infected animal (with symptoms)
+        state_graph.add_edge(0, 4,
+                             transition_criteria_function=lambda node:
+                             self.params["pSymptomaticIntake"],
+                             transition_function=lambda node: self.add_new_animal(node, 'SY'))
 
-        sG.add_edge(4, 2, transition_criteria_function=self.check_symptomatic_cured, transition_function=self.make_symptomatic_cured) # Infected dog dies
-        sG.add_edge(4, 5, transition_criteria_function=self.check_symptomatic_died, transition_function=self.make_symptomatic_died) # Infected dog dies
+        assert self.params['pDieAlternate'] <= 1.0, "pDieAlternate must be less than 1.0"
 
-        sG.add_edge(5, 0, transition_criteria_function=self.check_died_emptied, transition_function=self.make_died_emptied) # Infected dog dies
+        # Animal gains immunity
+        state_graph.add_edge(1, 2,
+                             transition_criteria_function=lambda node:
+                             int(node['occupant']['immunity'] >= 1) * \
+                             (1 - self.params['pDieAlternate']),
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['S'],
+                                                    self.id_map['IS']))
+        # Animal becomes infected
+        state_graph.add_edge(1, 3,
+                             transition_criteria_function=self.get_infection_probability,
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['S'],
+                                                    self.id_map['I']))
+        # Susceptible animal dies from other causes
+        state_graph.add_edge(1, 5,
+                             transition_criteria_function=lambda node:
+                             self.params["pDieAlternate"],
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['S'],
+                                                    self.id_map['D']))
 
-        return sG
+        assert self.params['pDieAlternate'] + self.params['pDischarge'] <= 1.0, \
+            "pDieAlternate + pDischarge must be less than 1.0"
 
-    def get_state_node(self, node_id):
-        return self.state_graph.nodes[self.id_map[node_id]]
+        # Insusceptible animal is discharged
+        state_graph.add_edge(2, 0,
+                             transition_criteria_function=lambda node:
+                             self.params['pDischarge'],
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['IS'],
+                                                    self.id_map['E']))
+        # Insusceptible animal dies from other causes
+        state_graph.add_edge(2, 5,
+                             transition_criteria_function=lambda node:
+                             self.params["pDieAlternate"],
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['IS'],
+                                                    self.id_map['D']))
+
+        assert self.params['pSurviveInfected'] + \
+               self.params['pSymptomatic'] + \
+               self.params['pDieAlternate'] <= 1.0, \
+            "pSurviveInfected + pSymptomatic + pDieAlternate must be less than 1.0"
+
+        # Infected dog is discharged
+        state_graph.add_edge(3, 2,
+                             transition_criteria_function=lambda node:
+                             self.get_probability_parameter_with_refractory(node,
+                                                                            "pSurviveInfected",
+                                                                            "refractoryPeriod",
+                                                                            "intake_t"),
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['I'],
+                                                    self.id_map['IS']))
+        # Infected dog dies
+        state_graph.add_edge(3, 4,
+                             transition_criteria_function=lambda node:
+                             self.get_probability_parameter_with_refractory(node,
+                                                                            "pSymptomatic",
+                                                                            "refractoryPeriod",
+                                                                            "intake_t"),
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['I'],
+                                                    self.id_map['SY']))
+        # Infected dog dies from other causes
+        state_graph.add_edge(2, 5,
+                             transition_criteria_function=lambda node:
+                             self.params["pDieAlternate"],
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['I'],
+                                                    self.id_map['D']))
+
+        assert self.params['pSurviveSymptomatic'] + \
+               self.params['pDie'] + \
+               self.params["pDieAlternate"] <= 1.0, \
+            "pSurviveSymptomatic + pDie + pDieAlternate must be less than 1.0"
+
+        # Symptomatic dog is discharged
+        state_graph.add_edge(4, 2, transition_criteria_function=lambda node:
+                             self.get_probability_parameter_with_refractory(node,
+                                                                            "pSurviveSymptomatic",
+                                                                            "refractoryPeriod",
+                                                                            "intake_t"),
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['SY'],
+                                                    self.id_map['IS']))
+        # Symptomatic dog dies
+        state_graph.add_edge(4, 5, transition_criteria_function=lambda node:
+                             self.get_probability_parameter_with_refractory(node,
+                                                                            "pDie",
+                                                                            "refractoryPeriod",
+                                                                            "intake_t"),
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['SY'],
+                                                    self.id_map['D']))
+        # Symptomatic dog dies from other causes
+        state_graph.add_edge(2, 5, transition_criteria_function=lambda node:
+                             self.params["pDieAlternate"],
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['SY'],
+                                                    self.id_map['D']))
+
+        assert self.params['pCleaning'] <= 1.0, "pCleaning must be less than 1.0"
+
+        # Deceased dog kennel is emptied
+        state_graph.add_edge(5, 0, transition_criteria_function=lambda node:
+                             self.params['pCleaning'],
+                             transition_function=lambda node:
+                             self.change_node_state(node,
+                                                    self.id_map['D'],
+                                                    self.id_map['E']))
+
+        return state_graph
+
+    def get_state_node(self, state):
+        '''Get the list of nodes in a given state.
+
+        Arguments:
+            state {str} -- the state string to get members
+
+        Returns:
+            list(int) -- a list of node ids that are in the state
+        '''
+
+        return self.state_graph.nodes[self.id_map[state]]
 
     def apply_state_graph(self):
+        '''Apply the state graph to the kennel graph.
+        '''
+
         for _, data in self.graph.nodes(data=True):
             node = data['data']
             if node['occupant'] is None:
@@ -245,74 +381,144 @@ class DistemperModel(object):
             if current_state_update_function:
                 current_state_update_function(node)
             edges = self.state_graph.edges(node_state, data=True)
-            transition_criteria_functions = [edge_data['transition_criteria_function'] for start, end, edge_data in edges]
-            transition_functions = [edge_data['transition_function'] for start, end, edge_data in edges]
-            transitions = [f(node) for f in transition_criteria_functions]
-            valid_true = transitions.count(True)
-            f = lambda x: None
-            if valid_true == 0:
-                continue
-            elif valid_true == 1:
-                f = transition_functions[transitions.index(True)]
-            else:
-                if self.transition_conflict_policy == 'first':
-                    f = transition_functions[transitions.index(True)]
-                elif self.transition_conflict_policy == 'random':
-                    idxs = [x for x, v in enumerate(transitions) if v]
-                    choice = random.choice(idxs)
-                    f = transition_functions[choice]
+            transition_criteria_functions = [edge_data['transition_criteria_function'] for start,
+                                             end,
+                                             edge_data in edges]
+            transition_functions = [edge_data['transition_function'] for start,
+                                    end,
+                                    edge_data in edges]
+            transitions_probabilities = [f(node) for f in transition_criteria_functions]
+            if sum(transitions_probabilities) > 1:
+                logging.error('Probabilities for transition sum to greater than 1.')
+                sys.exit(1)
+            null_event_p = 1 - sum(transitions_probabilities)
+            full_probabilities = [null_event_p] + list(transitions_probabilities)
+            transition = np.random.choice(list(range(0, len(full_probabilities))),
+                                          1,
+                                          p=full_probabilities)[0]
 
-            f(node)
-            
-    def update(self, kennel):
+            if transition != 0:
+                transition_functions[transition-1](node)
+
+    def update(self):
+        '''Update both the state graph and time.
+        '''
+
         self.apply_state_graph()
-        self.t += 1
+        self.time += 1
 
     def in_equilibrium(self):
+        '''Check if the simulation is in equillibrium (all cages in stable states)
+
+        Returns:
+            bool -- True if no empty, susceptible, infected, or symptomatic cages
+        '''
+
         empty_nodes = self.get_state_node('E')['members']
         susceptible_nodes = self.get_state_node('S')['members']
-        # survived_nodes = self.get_state_node('IS')['members']
         infected_nodes = self.get_state_node('I')['members']
         symptomatic_nodes = self.get_state_node('SY')['members']
-        # died_nodes = self.get_state_node('D')['members']
-        
-        return len(susceptible_nodes) == 0 and len(empty_nodes) == 0 and len(infected_nodes) == 0 and len(symptomatic_nodes) == 0
+
+        return len(susceptible_nodes) == 0 and \
+               len(empty_nodes) == 0 and \
+               len(infected_nodes) == 0 and \
+               len(symptomatic_nodes) == 0
+
+    def end_conditions(self):
+        '''Check if end conditions are met. This is an alternative to equillibrium conditions.
+
+        Returns:
+            bool -- True of max_time or max_intakes is reached
+            (they are ignored if None or not present)
+        '''
+
+        if 'max_time' in self.params and \
+            self.params['max_time'] and \
+            self.params['max_time'] <= self.time:
+            return True
+        if 'max_intakes' in self.params and \
+            self.params['max_intakes'] and \
+            self.params['max_intakes'] <= self.total_intake:
+            return True
+        return False
 
     def swap_cells(self, node_id0, node_id1):
-        n0 = self.graph.nodes[node_id0]
-        n1 = self.graph.nodes[node_id1]
-        if n0['data']['occupant'] is None:
-            s0 = 0
+        '''Swap two cell contents
+
+        Arguments:
+            node_id0 {int} -- the first node id
+            node_id1 {int} -- the second node id
+        '''
+
+        node0 = self.graph.nodes[node_id0]
+        node1 = self.graph.nodes[node_id1]
+        if node0['data']['occupant'] is None:
+            state0 = 0
         else:
-            s0 = n0['data']['occupant']['state']
-        if n1['data']['occupant'] is None:
-            s1 = 0
+            state0 = node0['data']['occupant']['state']
+        if node1['data']['occupant'] is None:
+            state1 = 0
         else:
-            s1 = n1['data']['occupant']['state']
+            state1 = node1['data']['occupant']['state']
         # Swap state membership
-        self.state_graph.nodes[s0]['members'].remove(node_id0)
-        self.state_graph.nodes[s1]['members'].append(node_id0)
-        self.state_graph.nodes[s1]['members'].remove(node_id1)
-        self.state_graph.nodes[s0]['members'].append(node_id1)
+        self.state_graph.nodes[state0]['members'].remove(node_id0)
+        self.state_graph.nodes[state1]['members'].append(node_id0)
+        self.state_graph.nodes[state1]['members'].remove(node_id1)
+        self.state_graph.nodes[state0]['members'].append(node_id1)
         # Swap occupant
-        tmp = n1['data']['occupant']
-        n1['data']['occupant'] = n0['data']['occupant']
-        n0['data']['occupant'] = tmp
+        tmp = node1['data']['occupant']
+        node1['data']['occupant'] = node0['data']['occupant']
+        node0['data']['occupant'] = tmp
 
 
 class Kennels(object):
-    def __init__(self, kennel_layout_definition_file=None):
+    '''This object represents the kennel graph and its associated rendering.
+    '''
+
+    def __init__(self, kennel_layout_definition_file=None,
+                 colors=None,
+                 edge_color=(255, 0, 0),
+                 background_color=(255, 255, 255)):
+        if colors is None:
+            colors = {'E': (0, 0, 0),
+                      'S': (0, 0, 255),
+                      'IS': (0, 255, 0),
+                      'I': (255, 255, 0),
+                      'SY': (255, 165, 0),
+                      'D': (255, 0, 0)}
+        self.colors = colors
+        self.edge_color = edge_color
+        self.background_color = background_color
+
         if kennel_layout_definition_file is None:
-            self.G = Kennels.get_sample_kennel_graph()
+            self.graph = Kennels.get_sample_kennel_graph()
             self.save_to_files('test.graph')
         else:
             self.load_from_files(kennel_layout_definition_file)
 
-        
+
     @staticmethod
-    def get_sample_kennel_graph(grid=[[12, 12], [12, 12], [0], [12, 12], [12, 12]], 
-                                graphics_params={'node_size': 10, 'node_minor_pad': 1, 
-                                'node_major_pad': 5, 'x_offset': 50, 'y_offset': 50}):
+    def get_sample_kennel_graph(grid=None,
+                                graphics_params=None):
+        '''This function generates a sample kennel graph in a grid.
+
+        Keyword Arguments:
+            grid {list(list(int))} -- a list of cage row sizes in disconnected groups
+            (default: {None; [[12, 12], [12, 12], [0], [12, 12], [12, 12]]})
+            graphics_params {dict(int)} -- a dictionary containing node_size, node_minor_pad,
+                                        node_major_pad, x_offset, and y_offset for
+                                        visualization (default: {None;
+                                        {'node_size': 10, 'node_minor_pad': 1,
+                                         'node_major_pad': 5,
+                                         'x_offset': 50, 'y_offset': 50}})
+        '''
+
+        if grid is None:
+            grid = [[12, 12], [12, 12], [0], [12, 12], [12, 12]]
+        if graphics_params is None:
+            graphics_params = {'node_size': 10, 'node_minor_pad': 1,
+                               'node_major_pad': 5,
+                               'x_offset': 50, 'y_offset': 50}
         nodes = []
         edges = []
         count = 0
@@ -322,13 +528,14 @@ class Kennels(object):
             for segment_length in row:
                 for i in range(0, segment_length):
                     new_node = {
-                        'node_id': count, 
-                        'x': col_offset + graphics_params['x_offset'], 
-                        'y': row_offset + graphics_params['y_offset'], 
-                        'color': (0, 0, 0), 
+                        'node_id': count,
+                        'x': col_offset + graphics_params['x_offset'],
+                        'y': row_offset + graphics_params['y_offset'],
+                        'color': (0, 0, 0),
                         'occupant': None
                         }
-                    new_node['center'] = Kennels.get_nodes_center(new_node, graphics_params['node_size'])
+                    new_node['center'] = Kennels.get_nodes_center(new_node,
+                                                                  graphics_params['node_size'])
                     nodes.append(new_node)
                     if i != segment_length - 1:
                         edges.append({'start': count, 'end': count + 1})
@@ -336,75 +543,141 @@ class Kennels(object):
                     col_offset += graphics_params['node_minor_pad'] + graphics_params['node_size']
                 col_offset += graphics_params['node_major_pad']
             row_offset += graphics_params['node_major_pad'] + graphics_params['node_size']
-        G = nx.Graph()
+        graph = nx.Graph()
         for node in nodes:
-            G.add_node(node['node_id'], data=node)
+            graph.add_node(node['node_id'], data=node)
         for edge in edges:
-            G.add_edge(edge['start'], edge['end'])
+            graph.add_edge(edge['start'], edge['end'])
 
-        G.graphics_params = graphics_params
-        return G
+        graph.graphics_params = graphics_params
+        return graph
 
     def load_from_files(self, filepath):
-        with open(filepath, 'r') as fp:
-            data = fp.read()
+        '''Load a graph from file.
+
+        Arguments:
+            filepath {str} -- the path to the graph file
+        '''
+
+        with open(filepath, 'r') as file_pointer:
+            data = file_pointer.read()
             data = json.loads(data)
             graphics_params = data.pop('graphics_params', None)
-            self.G = json_graph.node_link_graph(data)
-            self.G.graphics_params = graphics_params
-            
+            self.graph = json_graph.node_link_graph(data)
+            self.graph.graphics_params = graphics_params
+
 
     def save_to_files(self, filepath, indent=1):
-        data = nx.node_link_data(self.G)
-        data['graphics_params'] = self.G.graphics_params
-        with open(filepath, 'w') as fp:
-            json.dump(data, fp, indent=indent)
+        '''Save the graph to file.
+
+        Arguments:
+            filepath {str} -- the path to save the file
+
+        Keyword Arguments:
+            indent {int} -- the indentation level to pass to json.dump (default: {1})
+        '''
+
+        data = nx.node_link_data(self.graph)
+        data['graphics_params'] = self.graph.graphics_params
+        with open(filepath, 'w') as file_pointer:
+            json.dump(data, file_pointer, indent=indent)
 
     def get_graph(self):
-        return self.G
+        '''Get the graph.
 
-    def set_graph(self, G):
-        self.G = G
+        Returns:
+            nx.Graph -- the kennel graph
+        '''
+
+        return self.graph
+
+    def set_graph(self, graph):
+        '''Set the graph.
+
+        Arguments:
+            graph {nx.Graph} -- the kennel graph
+        '''
+
+        self.graph = graph
 
     @staticmethod
     def draw_box(surf, color, pos, size):
-        r = pygame.Rect((pos[0], pos[1]), (size[0], size[1]))
-        pygame.draw.rect(surf, color, r)
+        '''Draw a box in the game window.
+
+        Arguments:
+            surf {Surface} -- the surface to draw to
+            color {color} -- the color to draw
+            pos {list(int, int)} -- the position to draw to (top left)
+            size {list(int, int)} -- the size to draw
+        '''
+
+        rect = pygame.Rect((pos[0], pos[1]), (size[0], size[1]))
+        pygame.draw.rect(surf, color, rect)
 
     @staticmethod
-    def draw_line(surf, color, pos0, pos1, width=1):
+    def draw_line(surf, color, pos0, pos1):
+        '''Draw a line in the game window.
+
+        Arguments:
+            surf {Surface} -- the surface to draw to
+            color {color} -- the color to draw
+            pos0 {list(int, int)} -- the start position of the line
+            pos1 {list(int, int)} -- the end position of the line
+        '''
+
         pygame.draw.line(surf, color, pos0, pos1)
 
     @staticmethod
     def get_nodes_center(node, size):
+        '''Get the center of a drawn node.
+
+        Arguments:
+            node {int} -- the node id
+            size {list(int, int)} -- the size of the node
+
+        Returns:
+            tuple(int, int) -- the center of the node
+        '''
+
         return (node['x']+size/2.0, node['y']+size/2.0)
 
     def draw(self, surf, disease):
+        '''Draw the kennel given a disease state.
+
+        Arguments:
+            surf {Surface} -- the draw surface
+            disease {DistemperModel} -- the current disease state
+        '''
+
         empty_nodes = disease.get_state_node('E')['members']
         susceptible_nodes = disease.get_state_node('S')['members']
         survived_nodes = disease.get_state_node('IS')['members']
         infected_nodes = disease.get_state_node('I')['members']
         symptomatic_nodes = disease.get_state_node('SY')['members']
         died_nodes = disease.get_state_node('D')['members']
-        
-        for node_id in self.G.nodes:
-            node = self.G.nodes[node_id]['data']
+
+        for node_id in self.graph.nodes:
+            node = self.graph.nodes[node_id]['data']
             color = node['color']
             if node['node_id'] in susceptible_nodes:
-                color = (0, 0, 255)
+                color = self.colors['S']
             elif node['node_id'] in empty_nodes:
-                color = (0, 0, 0)
+                color = self.colors['E']
             elif node['node_id'] in infected_nodes:
-                color = (255, 255, 0)
+                color = self.colors['I']
             elif node['node_id'] in survived_nodes:
-                color = (0, 255, 0)
+                color = self.colors['IS']
             elif node['node_id'] in symptomatic_nodes:
-                color = (255, 165, 0)
+                color = self.colors['SY']
             elif node['node_id'] in died_nodes:
-                color = (255, 0, 0)
-            Kennels.draw_box(surf, color, (node['x'], node['y']), [self.G.graphics_params['node_size'], self.G.graphics_params['node_size']])
-        for edge in self.G.edges:
-            Kennels.draw_line(surf, (255, 0, 0), self.G.nodes[edge[0]]['data']['center'], self.G.nodes[edge[1]]['data']['center'])
+                color = self.colors['D']
+            Kennels.draw_box(surf, color, (node['x'], node['y']),
+                             [self.graph.graphics_params['node_size'],
+                              self.graph.graphics_params['node_size']])
+        for edge in self.graph.edges:
+            Kennels.draw_line(surf, self.edge_color,
+                              self.graph.nodes[edge[0]]['data']['center'],
+                              self.graph.nodes[edge[1]]['data']['center'])
 
 if __name__ == '__main__':
     from main import main

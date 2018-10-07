@@ -1,71 +1,112 @@
-# -*- coding: utf-8 -*-
-"""
-This example demonstrates many of the 2D plotting capabilities
-in pyqtgraph. All of the plots may be panned/scaled by dragging with 
-the left/right mouse buttons. Right click on any plot to show a context menu.
+"""This module contains the aggregate visualization of the simulation.
 """
 
-from pyqtgraph.Qt import QtGui, QtCore
-import numpy as np
+import sys
+
 import pyqtgraph as pg
+from pyqtgraph.Qt import QtCore, QtGui
+
 
 class AggregatePlot(object):
+    '''This class renders aggregate variables from a disease simulation.
+    '''
+
     def __init__(self, disease, kennel):
         self.disease = disease
         self.kennel = kennel
 
-        #QtGui.QApplication.setGraphicsSystem('raster')
         self.app = QtGui.QApplication([])
-        #mw = QtGui.QMainWindow()
-        #mw.resize(800,800)
 
         self.win = pg.GraphicsWindow(title="Aggregate Measures")
-        self.win.resize(1000,600)
+        self.win.resize(1500, 600)
         self.win.setWindowTitle('Aggregate Measures')
+        self.win.keyPressEvent = self.keyPressEvent
 
-        # Enable antialiasing for prettier plots
         pg.setConfigOptions(antialias=True)
 
         plots = []
         curves = []
-        
-        plots.append(self.win.addPlot(title="Population"))
+
+        plots.append(self.win.addPlot(title="Total Population"))
         curves.append(plots[-1].plot(pen='b'))
 
-        plots.append(self.win.addPlot(title="Infected"))
+        plots.append(self.win.addPlot(title="Current Population"))
+        curves.append(plots[-1].plot(pen='b'))
+
+        plots.append(self.win.addPlot(title="Total Infected"))
         curves.append(plots[-1].plot(pen='y'))
+
+        plots.append(self.win.addPlot(title="Current Infected"))
+        curves.append(plots[-1].plot(pen='y'))
+
+        plots.append(self.win.addPlot(title="Infection Rate"))
+        curves.append(plots[-1].plot(pen=(255, 165, 0)))
 
         self.win.nextRow()
 
-        plots.append(self.win.addPlot(title="Survived/Immune"))
+        plots.append(self.win.addPlot(title="Total Survived/Immune"))
         curves.append(plots[-1].plot(pen='g'))
 
-        plots.append(self.win.addPlot(title="Died"))
+        plots.append(self.win.addPlot(title="Current Survived/Immune"))
+        curves.append(plots[-1].plot(pen='g'))
+
+        plots.append(self.win.addPlot(title="Total Died"))
         curves.append(plots[-1].plot(pen='r'))
+
+        plots.append(self.win.addPlot(title="Current Died"))
+        curves.append(plots[-1].plot(pen='r'))
+
+        plots.append(self.win.addPlot(title="Survival Rate"))
+        curves.append(plots[-1].plot(pen='w'))
 
         self.curves = curves
         self.plots = plots
-        self.data = {'pop': [0], 'inf': [0], 'imm': [0], 'die': [0]}
-        #self.app.exec_()
-        #QtGui.QApplication.instance().exec_()
+        self.data = {'pop': [0], 'inf': [0], 'imm': [0], 'die': [0],
+                     'tpop': [0], 'tinf': [0], 'timm': [0], 'tdie': [0],
+                     'ir': [0], 'sr': [0]}
+
+    def _key_press_event(self, event):
+        if event.key() == QtCore.Qt.Key_Escape:
+            sys.exit(0)
+
+    keyPressEvent = _key_press_event
 
     def update(self):
+        '''Update the graph.
+        '''
+
         self.app.processEvents()
-        empty_nodes = len(self.disease.get_state_node('E')['members'])
+
+        self.data['tpop'].append(self.disease.total_intake)
+        self.data['tinf'].append(self.disease.total_infected)
+        self.data['timm'].append(self.disease.total_discharged)
+        self.data['tdie'].append(self.disease.total_died)
+
         susceptible_nodes = len(self.disease.get_state_node('S')['members'])
         survived_nodes = len(self.disease.get_state_node('IS')['members'])
         infected_nodes = len(self.disease.get_state_node('I')['members'])
+        symptomatic_nodes = len(self.disease.get_state_node('SY')['members'])
         died_nodes = len(self.disease.get_state_node('D')['members'])
 
-        self.data['pop'].append(self.disease.total_intake)#susceptible_nodes+survived_nodes+infected_nodes)
-        self.data['inf'].append(self.disease.total_infected)#infected_nodes)
-        self.data['imm'].append(self.disease.total_discharged)#survived_nodes)
-        self.data['die'].append(self.disease.total_died)#died_nodes)
+        self.data['pop'].append(susceptible_nodes +
+                                survived_nodes +
+                                infected_nodes +
+                                symptomatic_nodes +
+                                died_nodes)
+        self.data['inf'].append(infected_nodes + symptomatic_nodes)
+        self.data['imm'].append(survived_nodes)
+        self.data['die'].append(died_nodes)
 
-        for curve, data in zip(self.curves, [self.data['pop'], self.data['inf'], self.data['imm'], self.data['die']]):
+        self.data['ir'].append(self.disease.total_infected/self.disease.total_intake)
+        self.data['sr'].append(self.disease.total_discharged/self.disease.total_intake)
+
+        for curve, data in zip(self.curves, [self.data['tpop'], self.data['pop'],
+                                             self.data['tinf'], self.data['inf'], self.data['ir'],
+                                             self.data['timm'], self.data['imm'],
+                                             self.data['tdie'], self.data['die'], self.data['sr']]):
             curve.setData(data)
 
-            
+
 if __name__ == '__main__':
     from main import main
     main()
