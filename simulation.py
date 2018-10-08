@@ -81,7 +81,6 @@ class Simulation(object):
         if aggregate_visualization:
             self.plt = AggregatePlot(self.disease, self.kennels)
             self.update_hooks.append(self.plt.update)
-        input()
 
     def _check_events(self):
         for event in pygame.event.get():
