@@ -121,4 +121,4 @@ def main(batch=False):
 
 
 if __name__ == '__main__':
-    main(batch=True)
+    main(batch=False)
