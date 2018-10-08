@@ -7,9 +7,17 @@ The model uses a non-deterministic automata to update the local status for each 
 
 # Demonstration
 
-Using some probabilities which have not been verified, we can see how the simulation performs. Aggregate variable graphs are shown as follows:
+Using some probabilities which have not been verified, we can see how the simulation performs. 
+
+## Single Simulation
+When run in single simulation mode, visualizations of the temporal progress of the disease can be seen. Aggregate variable graphs are shown as follows:
+
 ![Video of Graphs](https://github.com/austinpetsalive/distemper-outbreak/blob/master/media/graphs.gif?raw=true)
+
 Additionally, a simulation of the kennel network states can be seen here:
+
 ![Video of Simulation](https://github.com/austinpetsalive/distemper-outbreak/blob/master/media/sim.gif?raw=true)
+
+## Batch Simulation
 Finally, when run in batch mode, different strategies can be compared which intervene in position. Here, animals are sorted by immunity to avoid infection of new dogs. This intervention is compared to no intervention:
 ![Comparison of Methods](https://github.com/austinpetsalive/distemper-outbreak/blob/master/media/Figure_1.png?raw=true)
