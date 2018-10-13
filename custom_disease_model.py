@@ -5,10 +5,12 @@ import json
 import logging
 import sys
 
+import matplotlib as mpl
 import numpy as np
-import pygame
 import networkx as nx
 from networkx.readwrite import json_graph
+
+import pygame # pylint: disable=E0401
 
 FLATTEN = lambda l: [item for sublist in l for item in sublist]
 
@@ -21,6 +23,7 @@ class DistemperModel(object):
         self.params = params
         self.graph = networkx_graph
         self.id_map = {}
+        self.id_map_r = {}
         self.reset()
 
     def reset(self):
@@ -39,8 +42,8 @@ class DistemperModel(object):
 
         Arguments:
             node {int} -- the node number
-            old_state {str} -- the start node id string
-            new_state {str} -- the end node id string
+            old_state {int} -- the start node id integer (from id_map)
+            new_state {int} -- the end node id integer (from id_map)
         '''
 
         if new_state == self.id_map['I'] or \
@@ -55,6 +58,20 @@ class DistemperModel(object):
         if node['node_id'] in self.state_graph.nodes[old_state]['members']:
             self.state_graph.nodes[old_state]['members'].remove(node['node_id'])
         self.state_graph.nodes[new_state]['members'].append(node['node_id'])
+
+    @staticmethod
+    def get_occupant_element():
+        '''Returns a default occupent element.
+
+        Returns:
+            dict -- a dictionary containing the default values for an occupant
+        '''
+
+        return {'value': 0,
+                'state': 0,
+                'immunity': 0,
+                'intake_t': -1,
+                'locked': False}
 
     def build_new_occupant(self, start_state, start_value=0, start_immunity=0.0):
         '''This function creates a new occupant for a node.
@@ -71,11 +88,14 @@ class DistemperModel(object):
         '''
 
         self.total_intake += 1
-        return {'value': start_value,
-                'state': start_state,
-                'immunity': start_immunity,
-                'intake_t': self.time}
+        occupant_element = DistemperModel.get_occupant_element()
+        occupant_element['value'] = start_value
+        occupant_element['state'] = start_state
+        occupant_element['immunity'] = start_immunity
+        occupant_element['intake_t'] = self.time
+        return occupant_element
 
+    # pylint: disable=C0103
     def get_probability_parameter_with_refractory(self, node,
                                                   parameter_name=None,
                                                   refractory_parameter=None,
@@ -169,10 +189,18 @@ class DistemperModel(object):
         '''
 
         if node['occupant']['immunity'] < 1:
-            # equation for 5 day full immunity
-            node['occupant']['immunity'] = node['occupant']['immunity'] * \
-                                           self.params['immunity_growth_factors'][0] + \
-                                           self.params['immunity_growth_factors'][1]
+            if self.params['immunity_lut']:
+                time = self.time - node['occupant']['intake_t']
+                if time < 0:
+                    node['occupant']['immunity'] = 0
+                if time >= len(self.params['immunity_growth_factors']):
+                    node['occupant']['immunity'] = 1
+                else:
+                    node['occupant']['immunity'] = self.params['immunity_growth_factors'][time]
+            else:
+                node['occupant']['immunity'] = node['occupant']['immunity'] * \
+                                            self.params['immunity_growth_factors'][0] + \
+                                            self.params['immunity_growth_factors'][1]
 
 
     def init_state_graph(self):
@@ -184,6 +212,7 @@ class DistemperModel(object):
 
         state_graph = nx.DiGraph()
         self.id_map = {'E': 0, 'S': 1, 'IS': 2, 'I': 3, 'SY': 4, 'D': 5}
+        self.id_map_r = {0: 'E', 1: 'S', 2: 'IS', 3: 'I', 4: 'SY', 5: 'D'}
         all_nodes = [int(node) for node in self.graph.nodes]
         state_graph.add_node(0, node_id='E', name='Empty Cell',
                              update_function=None, members=all_nodes)
@@ -372,10 +401,11 @@ class DistemperModel(object):
 
         for _, data in self.graph.nodes(data=True):
             node = data['data']
-            if node['occupant'] is None:
-                node_state = 0
-            else:
-                node_state = node['occupant']['state']
+            # Skip if locked
+            if node['occupant']['locked']:
+                continue
+
+            node_state = node['occupant']['state']
             current_state = self.state_graph.nodes[node_state]
             current_state_update_function = current_state['update_function']
             if current_state_update_function:
@@ -452,14 +482,8 @@ class DistemperModel(object):
 
         node0 = self.graph.nodes[node_id0]
         node1 = self.graph.nodes[node_id1]
-        if node0['data']['occupant'] is None:
-            state0 = 0
-        else:
-            state0 = node0['data']['occupant']['state']
-        if node1['data']['occupant'] is None:
-            state1 = 0
-        else:
-            state1 = node1['data']['occupant']['state']
+        state0 = node0['data']['occupant']['state']
+        state1 = node1['data']['occupant']['state']
         # Swap state membership
         self.state_graph.nodes[state0]['members'].remove(node_id0)
         self.state_graph.nodes[state1]['members'].append(node_id0)
@@ -489,10 +513,18 @@ class Kennels(object):
         self.colors = colors
         self.edge_color = edge_color
         self.background_color = background_color
-
+        convert_color_to_01 = lambda color_tuple: tuple(np.array(color_tuple)/255)
+        convert_color_to_0255 = lambda color_tuple: tuple([int(x*255) for x in color_tuple])
+        immunity_colormap = \
+            mpl.colors.LinearSegmentedColormap.from_list('immunity_colormap',
+                                                         [convert_color_to_01(self.colors['S']),
+                                                          convert_color_to_01(self.colors['IS'])],
+                                                         256)
+        self.immunity_gradient = [convert_color_to_0255(immunity_colormap(x)[0:3])
+                                  for x in np.linspace(0, 1, 256)]
         if kennel_layout_definition_file is None:
             self.graph = Kennels.get_sample_kennel_graph()
-            self.save_to_files('test.graph')
+            self.save_to_files('./data/test.graph')
         else:
             self.load_from_files(kennel_layout_definition_file)
 
@@ -518,7 +550,8 @@ class Kennels(object):
         if graphics_params is None:
             graphics_params = {'node_size': 10, 'node_minor_pad': 1,
                                'node_major_pad': 5,
-                               'x_offset': 50, 'y_offset': 50}
+                               'x_offset': 50, 'y_offset': 50,
+                               'immunity_gradient': True}
         nodes = []
         edges = []
         count = 0
@@ -532,8 +565,8 @@ class Kennels(object):
                         'x': col_offset + graphics_params['x_offset'],
                         'y': row_offset + graphics_params['y_offset'],
                         'color': (0, 0, 0),
-                        'occupant': None
-                        }
+                        'occupant': DistemperModel.get_occupant_element()
+                    }
                     new_node['center'] = Kennels.get_nodes_center(new_node,
                                                                   graphics_params['node_size'])
                     nodes.append(new_node)
@@ -660,7 +693,11 @@ class Kennels(object):
             node = self.graph.nodes[node_id]['data']
             color = node['color']
             if node['node_id'] in susceptible_nodes:
-                color = self.colors['S']
+                if self.graph.graphics_params['immunity_gradient']:
+                    color_idx = int(node['occupant']['immunity']*float(255))
+                    color = self.immunity_gradient[color_idx]
+                else:
+                    color = self.colors['S']
             elif node['node_id'] in empty_nodes:
                 color = self.colors['E']
             elif node['node_id'] in infected_nodes:

@@ -11,12 +11,13 @@ from copy import deepcopy
 from threading import Thread
 
 import numpy as np
-import pygame
-import pygame.locals as pgl
 import tqdm
 
+import pygame # pylint: disable=E0401
+import pygame.locals as pgl # pylint: disable=E0401
 from aggregate_visualization import AggregatePlot
 from custom_disease_model import DistemperModel, Kennels
+from interventions import * # pylint: disable=W0401,W0614
 
 
 class Simulation(object):
@@ -61,10 +62,10 @@ class Simulation(object):
         if spatial_visualization:
             self.fps = 0
             self.screen_width, self.screen_height = 640, 480
-            pygame.init()
+            pygame.init() #pylint: disable=E1101
             self.fps_clock = pygame.time.Clock()
             self.screen = pygame.display.set_mode((self.screen_width, self.screen_height), 0, 32)
-            self.surface = pygame.Surface(self.screen.get_size())
+            self.surface = pygame.Surface(self.screen.get_size()) #pylint: disable=E1121
             self.surface = self.surface.convert()
             self.surface.fill((255, 255, 255))
             self.clock = pygame.time.Clock()
@@ -84,12 +85,12 @@ class Simulation(object):
 
     def _check_events(self):
         for event in pygame.event.get():
-            if event.type == pgl.QUIT:
-                pygame.quit()
+            if event.type == pgl.QUIT: #pylint: disable=E1101
+                pygame.quit() #pylint: disable=E1101
                 sys.exit(0)
-            elif event.type == pgl.KEYDOWN:
-                if event.key == pgl.K_ESCAPE:
-                    pygame.quit()
+            elif event.type == pgl.KEYDOWN: #pylint: disable=E1101
+                if event.key == pgl.K_ESCAPE: #pylint: disable=E1101
+                    pygame.quit() #pylint: disable=E1101
                     sys.exit(0)
 
     def _redraw(self):
@@ -107,6 +108,13 @@ class Simulation(object):
 
     def _get_disease_state(self):
         return {sc: len(self.disease.get_state_node(sc)['members']) for sc in self.disease.id_map}
+
+    def _get_disease_stats(self):
+        return {'E': self.disease.total_intake, 'S': 0,
+                'IS': self.disease.total_discharged,
+                'I': self.disease.total_infected,
+                'SY': 0,
+                'D': self.disease.total_died}
 
     def update(self):
         '''Update the simulation and redraw.
@@ -154,7 +162,7 @@ class Simulation(object):
         else:
             while self.running:
                 self.update()
-            return self._get_disease_state()
+            return self._get_disease_stats()
 
 class BatchSimulation(object):
     '''This class runs a batch version of the simulation.

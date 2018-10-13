@@ -3,8 +3,8 @@
 
 import sys
 
-import pyqtgraph as pg
-from pyqtgraph.Qt import QtCore, QtGui
+import pyqtgraph as pg # pylint: disable=E0401
+from pyqtgraph.Qt import QtCore, QtGui # pylint: disable=E0401
 
 
 class AggregatePlot(object):
