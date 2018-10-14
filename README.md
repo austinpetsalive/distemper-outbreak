@@ -5,6 +5,14 @@ The model uses a non-deterministic automata to update the local status for each 
 
 ![Architecture of Distemper Model](https://github.com/austinpetsalive/distemper-outbreak/blob/master/media/Distemper%20Model.png?raw=true)
 
+## Parameters
+
+| Parameter Name        | Description | Type/Units           | Hypothesized Value (or Range)  | Source |
+| --------------------- | ----------- | :------------------: | -----------------------------: | ------ |
+| pSusceptibleIntake | The probability that an animal intakes as Susceptible to the virus | probability/hour | ??? | N/A |
+| pInfectIntake | The probability that an animal intakes as Infected with the virus (but not Symptomatic) | probability/hour | ??? | N/A |
+| pSymptomaticIntake | The probability that an animal intakes as Infected and Symptomatic with the virus | probability/hour | ??? | N/A |
+
 # Demonstration
 
 Using some probabilities which have not been verified, we can see how the simulation performs. 
