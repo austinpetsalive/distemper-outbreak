@@ -22,7 +22,7 @@ The model uses a non-deterministic automata to update the local status for each 
 | pDie | The probability that an animal will die given they are Symptomatic | probability/hour | ??? | N/A |
 | refractoryPeriod | The minimum time required for particular state transitions such as Symptomatic->Deceased and Infected->Symptomatic to have a non-zero probability | number of hours | ??? | N/A |
 | infection_kernel | The probability of infection given a distance in kennel connections | list of probabilities | ??? | N/A |
-| infection_kernel_function | A function that determines how immunity impacts infection rate given kernel probabilities from adjacent kennels | string lambda function | lambda node, k: k*(1-node[\'occupant\'][\'immunity\']) | N/A |
+| infection_kernel_function | A function that determines how immunity impacts infection rate given kernel probabilities from adjacent kennels | string lambda function | k*(1-immunity) | N/A |
 | immunity_growth_factors | Either a pair of floating point values specifying an iterative exponential growth function's parameters or a lookup table of values for each hour | list of 0-1 bounded values | ??? | N/A |
 | immunity_lut | A flag specifying if immunity growth will be exponential or follow a lookup table of values for each hour | boolean | True | True for lookup table function, False for exponential growth factor |
 | max_time | The maximum time the simulation will run before ending automatically | number of hours | 744 | 1 Month Estimate |
