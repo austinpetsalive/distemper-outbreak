@@ -56,7 +56,7 @@ The model uses a non-deterministic automata to update the local status for each 
 | refractoryPeriod          | ???                                                                                  | number of hours            | ???                           |
 | infection_kernel          | ???                                                                                  | list of probabilities      | ???                           |
 | infection_kernel_function | N/A                                                                                  | string lambda function     | k*(1-immunity)                |
-| immunity_growth_factors   | ![equation](https://latex.codecogs.com/gif.latex?x=[0...T]\mapsto\frac{1}{1+e^{-a*(x-b)}}\mathrm{for\a,b\fit\from\immunity\data})                                                                                  | list of 0-1 bounded values | ???                           |
+| immunity_growth_factors   | ![equation](https://latex.codecogs.com/gif.latex?x=[0...T]\mapsto\frac{1}{1+e^{-a*(x-b)}}) for a,b fit from immunity data                                                                                  | list of 0-1 bounded values | ???                           |
 | immunity_lut              | N/A                                                                                  | boolean                    | True                          |
 | max_time                  | N/A                                                                                  | number of hours            | 744                           |
 | max_intakes               | N/A                                                                                  | number of animals          | None                          |
