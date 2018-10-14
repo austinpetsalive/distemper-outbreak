@@ -32,10 +32,13 @@ The model uses a non-deterministic automata to update the local status for each 
 
 | Meta-Parameter Name            | Description                                                                                                                                       | Type/Units                 | Hypothesized Value (or Range) |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------: | ----------------------------: |
-| T | A time period in which to compute the meta-parameters (and, therefore, the regular parameters) | time interval | 1 month |
+| ![equation](https://latex.codecogs.com/gif.latex?T) | A time period in which to compute the meta-parameters (and, therefore, the regular parameters) | hours | 744 (i.e. 1 month) |
 | ![equation](https://latex.codecogs.com/gif.latex?N_{T}) | The number of animals in a given time period, T | count | ??? |
 | ![equation](https://latex.codecogs.com/gif.latex?S_{T}) | The number of animals in a given time period, T, who came in with distemper symptoms | count | ??? |
 | ![equation](https://latex.codecogs.com/gif.latex?V_{T}) | The number of animals in a given time period, T, who came in confirmed fully vaccinated | count | ??? |
+| ![equation](https://latex.codecogs.com/gif.latex?d_{T}) | The number of animals in a given time period, T, who died due to reasons other than distemper | count | ??? |
+| ![equation](https://latex.codecogs.com/gif.latex?D_{T}) | The number of animals in a given time period, T, who died due to distemper | count | ??? |
+| ![equation](https://latex.codecogs.com/gif.latex?G_{T}) | The number of animals in a given time period, T, who were symptomatic of distemper but cleared the illness | count | ??? |
 
 | Parameter Name            | Estimation Method                                                                    | Type/Units                 | Hypothesized Value (or Range) |
 | ------------------------- | ------------------------------------------------------------------------------------ | :------------------------: | ----------------------------: |
@@ -44,19 +47,19 @@ The model uses a non-deterministic automata to update the local status for each 
 | pSymptomaticIntake        | ![equation](https://latex.codecogs.com/gif.latex?1-(1-\frac{S_{T}}{N_{T}})^{T^{-1}}) | probability/hour           | ???                           |
 | pInsusceptibleIntake      | ![equation](https://latex.codecogs.com/gif.latex?1-(1-\frac{V_{T}}{N_{T}})^{T^{-1}}) | probability/hour           | ???                           |
 | pSurviveInfected          | ???                                                                                  | probability/hour           | ???                           |
-| pSurviveSymptomatic       | ???                                                                                  | probability/hour           | ???                           |
-| pDieAlternate             | ???                                                                                  | probability/hour           | ???                           |
-| pDischarge                | ???                                                                                  | probability/hour           | ???                           |
-| pCleaning                 | ???                                                                                  | probability/hour           | ???                           |
+| pSurviveSymptomatic       | ![equation](https://latex.codecogs.com/gif.latex?1-(1-\frac{G_{T}}{N_{T}})^{T^{-1}}) | probability/hour           | ???                           |
+| pDieAlternate             | ![equation](https://latex.codecogs.com/gif.latex?1-(1-\frac{d_{T}}{N_{T}})^{T^{-1}}) | probability/hour           | ???                           |
+| pDischarge                | N/A                                                                                  | probability/hour           | 0.0 (unused)                  |
+| pCleaning                 | N/A                                                                                  | probability/hour           | 0.75                          |
 | pSymptomatic              | ???                                                                                  | probability/hour           | ???                           |
-| pDie                      | ???                                                                                  | probability/hour           | ???                           |
+| pDie                      | ![equation](https://latex.codecogs.com/gif.latex?1-(1-\frac{D_{T}}{N_{T}})^{T^{-1}}) | probability/hour           | ???                           |
 | refractoryPeriod          | ???                                                                                  | number of hours            | ???                           |
 | infection_kernel          | ???                                                                                  | list of probabilities      | ???                           |
-| infection_kernel_function | ???                                                                                  | string lambda function     | k*(1-immunity)                |
-| immunity_growth_factors   | ???                                                                                  | list of 0-1 bounded values | ???                           |
-| immunity_lut              | ???                                                                                  | boolean                    | True                          |
-| max_time                  | ???                                                                                  | number of hours            | 744                           |
-| max_intakes               | ???                                                                                  | number of animals          | None                          |
+| infection_kernel_function | N/A                                                                                  | string lambda function     | k*(1-immunity)                |
+| immunity_growth_factors   | ![equation](https://latex.codecogs.com/gif.latex?x=[0...T]\mapsto\frac{1}{1+e^{-a*(x-b)}}\mathrm{for\:a,b\:fit\:from\:immunity\:data})                                                                                  | list of 0-1 bounded values | ???                           |
+| immunity_lut              | N/A                                                                                  | boolean                    | True                          |
+| max_time                  | N/A                                                                                  | number of hours            | 744                           |
+| max_intakes               | N/A                                                                                  | number of animals          | None                          |
 
 # Demonstration
 
