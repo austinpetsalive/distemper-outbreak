@@ -4,6 +4,7 @@
 import json
 import logging
 import sys
+import copy
 
 import matplotlib as mpl
 import numpy as np
@@ -19,12 +20,13 @@ class DistemperModel(object):
     operating on each node of a graph a la a cellular automata.
     '''
 
-    def __init__(self, networkx_graph, params):
+    def __init__(self, networkx_graph, params, reset=True):
         self.params = params
         self.graph = networkx_graph
-        self.id_map = {}
-        self.id_map_r = {}
-        self.reset()
+        self.id_map = {'E': 0, 'S': 1, 'IS': 2, 'I': 3, 'SY': 4, 'D': 5}
+        self.id_map_r = {0: 'E', 1: 'S', 2: 'IS', 3: 'I', 4: 'SY', 5: 'D'}
+        if reset:
+            self.reset()
 
     def reset(self):
         '''This function resets the module.
@@ -36,6 +38,29 @@ class DistemperModel(object):
         self.total_died = 0
         self.total_discharged = 0
         self.state_graph = self.init_state_graph()
+
+    @staticmethod
+    def copy(disease):
+        '''Performs a deep copy of the disease model
+
+        Arguments:
+            disease {DistemperModel} -- the disease model to copy
+
+        Returns:
+            DistemperModel -- the copy of the disease model
+        '''
+
+        networkx_graph = copy.deepcopy(disease.graph)
+        params = copy.deepcopy(disease.params)
+        new_model = DistemperModel(networkx_graph, params)
+        new_model.time = copy.deepcopy(disease.time) # pylint: disable=W0201
+        total_intake = disease.total_intake + 1
+        new_model.total_intake = total_intake - 1 # pylint: disable=W0201
+        new_model.total_infected = copy.deepcopy(disease.total_infected) # pylint: disable=W0201
+        new_model.total_died = copy.deepcopy(disease.total_died) # pylint: disable=W0201
+        new_model.total_discharged = copy.deepcopy(disease.total_discharged) # pylint: disable=W0201
+        new_model.state_graph = copy.deepcopy(disease.state_graph) # pylint: disable=W0201
+        return new_model
 
     def change_node_state(self, node, old_state, new_state):
         '''This function changes a node's state, adjusting state tracking variables as well.
@@ -211,8 +236,7 @@ class DistemperModel(object):
         '''
 
         state_graph = nx.DiGraph()
-        self.id_map = {'E': 0, 'S': 1, 'IS': 2, 'I': 3, 'SY': 4, 'D': 5}
-        self.id_map_r = {0: 'E', 1: 'S', 2: 'IS', 3: 'I', 4: 'SY', 5: 'D'}
+
         all_nodes = [int(node) for node in self.graph.nodes]
         state_graph.add_node(0, node_id='E', name='Empty Cell',
                              update_function=None, members=all_nodes)
@@ -430,6 +454,33 @@ class DistemperModel(object):
             if transition != 0:
                 transition_functions[transition-1](node)
 
+    @staticmethod
+    def look_ahead(disease_state, n, sample=1, perform_first=None):
+        '''This function creates a copy of the simulation as it is right now then
+        iterates the simulation n times. It will perform this operation as many
+        times as specified by sample then provide the list of results.
+
+        Arguments:
+            n {int} -- the number of steps to look ahead
+
+        Keyword Arguments:
+            sample {int} -- the number of times to try looking ahead (default: {1})
+
+        Returns:
+            list(list(float)) -- a list of the results (total intake, total infected)
+            for each sample at time step t0+n where t0 is the current simulation state
+        '''
+        disease_copy = DistemperModel.copy(disease_state)
+        results = []
+        for _ in range(0, sample):
+            disease = DistemperModel.copy(disease_copy)
+            if perform_first:
+                perform_first(disease)
+            for _ in range(0, n):
+                disease.update()
+            results.append([disease.total_intake, disease.total_infected])
+        return results
+
     def update(self):
         '''Update both the state graph and time.
         '''
@@ -485,9 +536,11 @@ class DistemperModel(object):
         state0 = node0['data']['occupant']['state']
         state1 = node1['data']['occupant']['state']
         # Swap state membership
-        self.state_graph.nodes[state0]['members'].remove(node_id0)
+        if node_id0 in self.state_graph.nodes[state0]['members']:
+            self.state_graph.nodes[state0]['members'].remove(node_id0)
         self.state_graph.nodes[state1]['members'].append(node_id0)
-        self.state_graph.nodes[state1]['members'].remove(node_id1)
+        if node_id1 in self.state_graph.nodes[state1]['members']:
+            self.state_graph.nodes[state1]['members'].remove(node_id1)
         self.state_graph.nodes[state0]['members'].append(node_id1)
         # Swap occupant
         tmp = node1['data']['occupant']

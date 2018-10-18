@@ -70,7 +70,7 @@ def main(batch=False):
         'max_intakes': None,
 
         # Intervention
-        'intervention': 'TimedRemovalIntervention()' # Different interventions can go here
+        'intervention': 'RoomLockIntervention()' # Different interventions can go here
         }
     if not batch:
         sim = simulation.Simulation(params,
@@ -172,4 +172,4 @@ def main(batch=False):
 
 
 if __name__ == '__main__':
-    main(batch=False)
+    main(batch=True)
