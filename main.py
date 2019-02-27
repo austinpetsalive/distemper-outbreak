@@ -1,5 +1,6 @@
 """This module is the top-level simulation.
 """
+import os
 
 from copy import copy
 
@@ -7,9 +8,15 @@ import matplotlib.pyplot as plt
 from matplotlib import cm
 import numpy as np
 import pandas as pd
+import json
 
 import simulation
 
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--use_batch", default=True, help="if True, the simulation will run a batch experiment")
+args = parser.parse_args()
 
 def main(batch=False):
     '''This main function allows quick testing of the batch and non-batch versions
@@ -18,60 +25,68 @@ def main(batch=False):
     Keyword Arguments:
         batch {bool} -- if True, the simulation will run a batch experiment (default: {False})
     '''
+    if os.path.exists('./sim_params.json'):
+        with open('./sim_params.json') as f:
+            params = json.load(f)
+            print("Loaded ./sim_params.json")
 
-    # Note: all probabilities are in units p(event) per hour
-    params = {
-        # Intake Probabilities (Note, 1-sum(these) is probability of no intake)
-        'pSusceptibleIntake': 0.125,
-        'pInfectIntake': 0.02,
-        'pSymptomaticIntake': 0.01,
-        'pInsusceptibleIntake': 0.05,
+    else:
+        # Note: all probabilities are in units p(event) per hour
+        params = {
+            # Intake Probabilities (Note, 1-sum(these) is probability of no intake)
+            'pSusceptibleIntake': 0.125,
+            'pInfectIntake': 0.02,
+            'pSymptomaticIntake': 0.01,
+            'pInsusceptibleIntake': 0.05,
 
-        # Survival of Illness
-        'pSurviveInfected': 0.025,
-        'pSurviveSymptomatic': 0.025,
+            # Survival of Illness
+            'pSurviveInfected': 0.025,
+            'pSurviveSymptomatic': 0.025,
 
-        # Alternate Death Rate
-        'pDieAlternate': 0.001,
+            # Alternate Death Rate
+            'pDieAlternate': 0.001,
 
-        # Discharge and Cleaning
-        'pDischarge': 0.05,
-        'pCleaning': 0.9,
+            # Discharge and Cleaning
+            'pDischarge': 0.05,
+            'pCleaning': 0.9,
 
-        # Disease Refractory Period
-        'refractoryPeriod': 3.0*24.0,
+            # Disease Refractory Period
+            'refractoryPeriod': 3.0*24.0,
 
-        # Death and Symptoms of Illness
-        'pSymptomatic': 0.04,
-        'pDie': 0.05,
+            # Death and Symptoms of Illness
+            'pSymptomatic': 0.04,
+            'pDie': 0.05,
 
-        # Infection Logic
-        'infection_kernel': [0.05, 0.01],
-        'infection_kernel_function': 'lambda node, k: k*(1-node[\'occupant\'][\'immunity\'])',
+            # Infection Logic
+            'infection_kernel': [0.05, 0.01],
+            'infection_kernel_function': 'lambda node, k: k*(1-node[\'occupant\'][\'immunity\'])',
 
-        # Immunity Growth (a0*immunity+a1)
-        # (1.03, 0.001 represents full immunity in 5 days)
-        #'immunity_growth_factors': [1.03, 0.001],
-        'immunity_growth_factors': [0.0114, 0.0129, 0.0146, 0.0166, 0.0187, 0.0212, 0.0240,
-                                    0.0271, 0.0306, 0.0346, 0.0390, 0.0440, 0.0496, 0.0559,
-                                    0.0629, 0.0707, 0.0794, 0.0891, 0.0998, 0.1117, 0.1248,
-                                    0.1392, 0.1549, 0.1721, 0.1908, 0.2109, 0.2326, 0.2558,
-                                    0.2804, 0.3065, 0.3338, 0.3623, 0.3918, 0.4221, 0.4530,
-                                    0.4843, 0.5157, 0.5470, 0.5779, 0.6082, 0.6377, 0.6662,
-                                    0.6935, 0.7196, 0.7442, 0.7674, 0.7891, 0.8092, 0.8279,
-                                    0.8451, 0.8608, 0.8752, 0.8883, 0.9002, 0.9109, 0.9206,
-                                    0.9293, 0.9371, 0.9441, 0.9504, 0.9560, 0.9610, 0.9654,
-                                    0.9694, 0.9729, 0.9760, 0.9788, 0.9813, 0.9834, 0.9854,
-                                    0.9871, 0.9886],
-        'immunity_lut': True,
+            # Immunity Growth (a0*immunity+a1)
+            # (1.03, 0.001 represents full immunity in 5 days)
+            #'immunity_growth_factors': [1.03, 0.001],
+            'immunity_growth_factors': [0.0114, 0.0129, 0.0146, 0.0166, 0.0187, 0.0212, 0.0240,
+                                        0.0271, 0.0306, 0.0346, 0.0390, 0.0440, 0.0496, 0.0559,
+                                        0.0629, 0.0707, 0.0794, 0.0891, 0.0998, 0.1117, 0.1248,
+                                        0.1392, 0.1549, 0.1721, 0.1908, 0.2109, 0.2326, 0.2558,
+                                        0.2804, 0.3065, 0.3338, 0.3623, 0.3918, 0.4221, 0.4530,
+                                        0.4843, 0.5157, 0.5470, 0.5779, 0.6082, 0.6377, 0.6662,
+                                        0.6935, 0.7196, 0.7442, 0.7674, 0.7891, 0.8092, 0.8279,
+                                        0.8451, 0.8608, 0.8752, 0.8883, 0.9002, 0.9109, 0.9206,
+                                        0.9293, 0.9371, 0.9441, 0.9504, 0.9560, 0.9610, 0.9654,
+                                        0.9694, 0.9729, 0.9760, 0.9788, 0.9813, 0.9834, 0.9854,
+                                        0.9871, 0.9886],
+            'immunity_lut': True,
 
-        # End Conditions
-        'max_time': 31*24, # One month
-        'max_intakes': None,
+            # End Conditions
+            'max_time': 31*24, # One month
+            'max_intakes': None,
 
-        # Intervention
-        'intervention': 'RoomLockIntervention()' # Different interventions can go here
-        }
+            # Intervention
+            'intervention': 'RoomLockIntervention()' # Different interventions can go here
+            }
+        with open('./sim_params.json', 'w+') as out:
+            json.dump(params, out)
+        
     if not batch:
         sim = simulation.Simulation(params,
                                     spatial_visualization=True,
@@ -172,4 +187,4 @@ def main(batch=False):
 
 
 if __name__ == '__main__':
-    main(batch=True)
+    main(batch=args.use_batch)
