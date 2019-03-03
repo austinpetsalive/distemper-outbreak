@@ -15,7 +15,7 @@ import simulation
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--use_batch", default=True, help="if True, the simulation will run a batch experiment")
+parser.add_argument("--use_batch", action='store_true', help="if True, the simulation will run a batch experiment")
 args = parser.parse_args()
 
 def main(batch=False):
@@ -28,7 +28,7 @@ def main(batch=False):
     if os.path.exists('./sim_params.json'):
         with open('./sim_params.json') as f:
             params = json.load(f)
-            print("Loaded ./sim_params.json")
+            print("Loaded ./sim_params.json"+"-"*30)
 
     else:
         # Note: all probabilities are in units p(event) per hour
@@ -82,12 +82,13 @@ def main(batch=False):
             'max_intakes': None,
 
             # Intervention
-            'intervention': 'RoomLockIntervention()' # Different interventions can go here
+            'intervention': 'TimedRemovalIntervention()' # Different interventions can go here
             }
         with open('./sim_params.json', 'w+') as out:
             json.dump(params, out)
-        
+			
     if not batch:
+        print(params['intervention'])
         sim = simulation.Simulation(params,
                                     spatial_visualization=True,
                                     return_on_equillibrium=False,
@@ -95,7 +96,7 @@ def main(batch=False):
         print(sim.run())
     else:
         # Run batch simulation comparing interventions
-        runs = 4
+        runs = 30
         bar_width = 0.25
         colors = [cm.jet(0), cm.jet(0.33), cm.jet(0.66)] #pylint: disable=E1101
         alphas = [0.75, 0.5, 0.25]
@@ -110,6 +111,7 @@ def main(batch=False):
         params2['intervention'] = 'TimedRemovalIntervention()'
 
         def _get_nice_display_results(_p):
+            print(_p['intervention'])
             results = simulation.BatchSimulation(_p, runs).run()
             results_dataframe = pd.DataFrame.from_records(results)
             results_dataframe = results_dataframe.drop(['S', 'IS', 'SY', 'D'], axis=1)
