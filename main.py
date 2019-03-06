@@ -25,6 +25,8 @@ def main(batch=False):
     Keyword Arguments:
         batch {bool} -- if True, the simulation will run a batch experiment (default: {False})
     '''
+    np.random.seed(1234)
+    
     if os.path.exists('./sim_params.json'):
         with open('./sim_params.json') as f:
             params = json.load(f)
@@ -86,13 +88,13 @@ def main(batch=False):
             }
         with open('./sim_params.json', 'w+') as out:
             json.dump(params, out)
-			
+            
     if not batch:
         print(params['intervention'])
         sim = simulation.Simulation(params,
                                     spatial_visualization=True,
-                                    return_on_equillibrium=False,
-                                    aggregate_visualization=True)
+                                    aggregate_visualization=True,
+									return_on_equillibrium=True,)
         print(sim.run())
     else:
         # Run batch simulation comparing interventions

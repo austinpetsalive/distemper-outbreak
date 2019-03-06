@@ -47,11 +47,44 @@ class Distemper(gym.Env):
     """
 
     def __init__(self):
+
+        self._reset_params()
+        self.simulation = Simulation(self.params,
+                                     spatial_visualization=False,
+                                     aggregate_visualization=False,
+                                     return_on_equillibrium=True)
+        self.state_encoder = OneHotEncoder(handle_unknown='error', sparse=False)
+        self.state_encoder.fit([[x, 1] for x in self.simulation.disease.id_map.values()])
+        self.num_nodes = len(self.simulation.disease.graph.nodes)
+        self.num_states = len(self.simulation.disease.id_map.values())
+        self.action_space = spaces.Discrete(4)
+        self.num_states = len(self.state_encoder.transform([[0, 1]])[0])
+        self.observation_space = spaces.Discrete(self.num_states*self.num_nodes)
+
+        # Two incentive methods that allows the rl agent to advance the simulation
+        self.reward_bias = 10.0
+        self.bonus_reward = 0.
+        self.turn_around_rate = 10 # force 1 simulation update for every ? of non-forwarding actions taken 
+        self.turn_around_counter = 0
+        self.incentive_methods = [0,0]
+        
+        # Action stats
+        self.actions_history = []
+        self.turn_around_actions_history = []
+
+        self.i = 0
+        self.j = 1
+
+        self.seed()
+
+        self.state, _ = self._get_state_from_simulation()
+
+    def _reset_params(self):
+        
         if os.path.exists('./sim_params.json'):
             with open('./sim_params.json') as f:
                 self.params = json.load(f)
                 print("Loaded ./sim_params.json"+"-"*30)
-
         else:
             # Note: all probabilities are in units p(event) per hour
             self.params = {
@@ -108,38 +141,7 @@ class Distemper(gym.Env):
                 }
         with open('./sim_params.json', 'w+') as out:
             json.dump(self.params, out)
-            
-        print(self.params['intervention'])
-        self.simulation = Simulation(self.params,
-                                     spatial_visualization=False,
-                                     aggregate_visualization=False,
-                                     return_on_equillibrium=True)
-        self.state_encoder = OneHotEncoder(handle_unknown='error', sparse=False)
-        self.state_encoder.fit([[x, 1] for x in self.simulation.disease.id_map.values()])
-        self.num_nodes = len(self.simulation.disease.graph.nodes)
-        self.num_states = len(self.simulation.disease.id_map.values())
-        self.action_space = spaces.Discrete(4)
-        self.num_states = len(self.state_encoder.transform([[0, 1]])[0])
-        self.observation_space = spaces.Discrete(self.num_states*self.num_nodes)
-
-        # Two incentive methods that allows the rl agent to advance the simulation
-        self.reward_bias = 10.0
-        self.bonus_reward = 0.
-        self.turn_around_rate = 10 # force 1 simulation update for every ? of non-forwarding actions taken 
-        self.turn_around_counter = 0
-        self.incentive_methods = [0,0]
         
-        # Action stats
-        self.actions_history = []
-        self.turn_around_actions_history = []
-
-        self.i = 0
-        self.j = 1
-
-        self.seed()
-
-        self.state, _ = self._get_state_from_simulation()
-
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
         return [seed]
@@ -164,7 +166,6 @@ class Distemper(gym.Env):
         # Stats
         self.bonus_reward = 0.
         self.turn_around_counter += 1
-        action = 0
         self.actions_history.append(action)
         
         if action == 0:
@@ -219,10 +220,11 @@ class Distemper(gym.Env):
             print("Action #{}".format(action), end="\r")
         
     def reset(self):
-        print(self.params['intervention'])
+        
+        self._reset_params()
         self.simulation = Simulation(self.params,
-                                     spatial_visualization=True,
-                                     aggregate_visualization=True,
+                                     spatial_visualization=False,
+                                     aggregate_visualization=False,
                                      return_on_equillibrium=True)
                                      
         # Two incentive methods that allows the rl agent to advance the simulation
