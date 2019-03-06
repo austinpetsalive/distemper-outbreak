@@ -92,10 +92,10 @@ def main(try_load_model=True):
         return means, stes, cols
   
     # Train
-    if try_load_model: 
-        rl_agent.load_weights('dqn_weights.h5f')
-    else:
-        rl_agent.fit(env, nb_steps=10000, visualize=False, verbose=1)
+    #if try_load_model: 
+    #    rl_agent.load_weights('dqn_weights.h5f')
+    #else:
+    rl_agent.fit(env, nb_steps=10000, visualize=False, verbose=1)
     
     # Test
     m, s, c = _get_nice_display_results(rl_agent, env, runs=4)

@@ -137,7 +137,7 @@ class Distemper(gym.Env):
 
     def step(self, action):
         assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
-
+        
         _, num_infected = self._get_state_from_simulation()
 
         if action == 0:

@@ -47,12 +47,12 @@ class Simulation(object):
            isinstance(self.params['infection_kernel_function'], str):
             self.params['infection_kernel_function'] = \
             eval(self.params['infection_kernel_function']) #pylint: disable=W0123
-        else:
+        elif not isinstance(self.params['infection_kernel_function'], object):
             self.params['infection_kernel_function'] = lambda node, k: 0.0
         if 'intervention' in self.params and isinstance(self.params['intervention'], str):
             self.params['intervention'] = \
             eval(self.params['intervention']) #pylint: disable=W0123
-        else:
+        elif not isinstance(self.params['intervention'], object):
             self.params['intervention'] = None
         self.kennels = Kennels()
         self.disease = DistemperModel(self.kennels.get_graph(), self.params)
