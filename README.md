@@ -7,6 +7,7 @@ The model uses a non-deterministic automata to update the local status for each 
 
 ## Parameters
 
+| Parameter Name            | Description                                                                                                                                       | Type/Units                 |
 | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | :------------------------: |
 | pSusceptibleIntake        | The probability that an animal intakes as Susceptible to the virus                                                                                | probability/hour           |
 | pInfectIntake             | The probability that an animal intakes as Infected with the virus (but not Symptomatic)                                                           | probability/hour           |
