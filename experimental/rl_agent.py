@@ -12,6 +12,12 @@ from rl.memory import SequentialMemory
 from distemper import Distemper
 #ENV_NAME = 'CartPole-v0'
 
+import tensorflow as tf
+from keras import backend as K
+
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '-1'
+
 # Get the environment and extract the number of actions available in the Cartpole problem
 #env = gym.make(ENV_NAME)
 env = Distemper()
@@ -34,6 +40,6 @@ target_model_update=1e-2, policy=policy)
 dqn.compile(Adam(lr=1e-3), metrics=['mae'])
 
 # Okay, now it's time to learn something! We visualize the training here for show, but this slows down training quite a lot. 
-dqn.fit(env, nb_steps=10000, visualize=False, verbose=2)
+dqn.fit(env, nb_steps=10000, visualize=False, verbose=1)
 
-dqn.test(env, nb_episodes=5, visualize=True)
+dqn.test(env, nb_episodes=1, visualize=False)

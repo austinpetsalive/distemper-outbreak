@@ -104,4 +104,4 @@ def main(try_load_model=True):
     rl_agent.save_weights('sarsa_weights.h5f', overwrite=True)
     
 if __name__ == "__main__":
-    main(try_load_model=True)
+    main(try_load_model=False)

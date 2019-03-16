@@ -48,10 +48,11 @@ def main(try_load_model=True):
     np.random.seed(1234)
     env.seed(1234)
     nb_actions = env.action_space.n
+    batch = 100
 
     def agent(states, actions):
         model = Sequential()
-        model.add(Flatten(input_shape = (1, states)))
+        model.add(Flatten(input_shape = (batch, states)))
         model.add(Dense(512, activation='relu'))
         model.add(Dense(128, activation='relu'))
         model.add(Dense(32, activation='relu'))
@@ -61,9 +62,9 @@ def main(try_load_model=True):
     model = agent(env.observation_space.n, env.action_space.n)
     print(model.summary())
 
-    policy = MaxBoltzmannQPolicy()
+    policy = MaxBoltzmannQPolicy(eps=.5)
     test_policy = GreedyQPolicy()
-    memory = SequentialMemory(limit=50000, window_length=1)
+    memory = SequentialMemory(limit=50000, window_length=batch)
     rl_agent = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, nb_steps_warmup=1024,target_model_update=1e-2, policy=policy, test_policy=test_policy)
     rl_agent.compile(Adam(lr=1e-4), metrics = ['mse'])
 
@@ -92,10 +93,10 @@ def main(try_load_model=True):
         return means, stes, cols
   
     # Train
-    #if try_load_model: 
-    #    rl_agent.load_weights('dqn_weights.h5f')
-    #else:
-    rl_agent.fit(env, nb_steps=10000, visualize=False, verbose=1)
+    if try_load_model: 
+        rl_agent.load_weights('dqn_weights.h5f')
+    else:
+        rl_agent.fit(env, nb_steps=10000, visualize=False, verbose=1)
     
     # Test
     m, s, c = _get_nice_display_results(rl_agent, env, runs=4)
@@ -104,4 +105,4 @@ def main(try_load_model=True):
     rl_agent.save_weights('dqn_weights.h5f', overwrite=True)
     
 if __name__ == "__main__":
-    main(try_load_model=True)
+    main(try_load_model=False)

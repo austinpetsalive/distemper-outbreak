@@ -110,11 +110,18 @@ class Simulation(object):
         return {sc: len(self.disease.get_state_node(sc)['members']) for sc in self.disease.id_map}
 
     def _get_disease_stats(self):
-        return {'E': self.disease.total_intake, 'S': 0,
+        return {'E': self.disease.total_intake, 
+                'S': 0,
                 'IS': self.disease.total_discharged,
                 'I': self.disease.total_infected,
                 'SY': 0,
-                'D': self.disease.total_died}
+                'D': self.disease.total_died,
+                'E2I': self.disease.E2I,
+                'sum_S2D_IS2D': self.disease.sum_S2D_IS2D,
+                'E2S': self.disease.E2S,
+                'E2IS': self.disease.E2IS,
+                'S2I': self.disease.S2I
+                }
 
     def update(self):
         '''Update the simulation and redraw.

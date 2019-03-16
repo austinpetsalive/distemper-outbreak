@@ -38,6 +38,12 @@ class DistemperModel(object):
         self.total_died = 0
         self.total_discharged = 0
         self.state_graph = self.init_state_graph()
+        
+        self.E2I = 0
+        self.sum_S2D_IS2D = 0
+        self.E2S = 0
+        self.E2IS = 0
+        self.S2I = 0
 
     @staticmethod
     def copy(disease):
@@ -83,6 +89,17 @@ class DistemperModel(object):
         if node['node_id'] in self.state_graph.nodes[old_state]['members']:
             self.state_graph.nodes[old_state]['members'].remove(node['node_id'])
         self.state_graph.nodes[new_state]['members'].append(node['node_id'])
+        
+        if old_state == self.id_map['E'] and new_state == self.id_map['I']:
+            self.E2I += 1
+        elif (old_state == self.id_map['S'] or old_state == self.id_map['IS']) and new_state == self.id_map['D']:
+            self.sum_S2D_IS2D += 1
+        elif old_state == self.id_map['E'] and new_state == self.id_map['S']:
+            self.E2S += 1
+        elif old_state == self.id_map['E'] and new_state == self.id_map['IS']:
+            self.E2IS += 1
+        elif old_state == self.id_map['S'] and new_state == self.id_map['I']:
+            self.S2I += 1
 
     @staticmethod
     def get_occupant_element():

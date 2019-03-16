@@ -66,7 +66,7 @@ class Distemper(gym.Env):
         self.bonus_reward = 0.
         self.turn_around_rate = 10 # force 1 simulation update for every ? of non-forwarding actions taken 
         self.turn_around_counter = 0
-        self.incentive_methods = [0,0]
+        self.incentive_methods = [0,1]
         
         # Action stats
         self.actions_history = []
@@ -164,6 +164,7 @@ class Distemper(gym.Env):
         _, num_infected = self._get_state_from_simulation()
 
         # Stats
+        self.reward_bias = 0
         self.bonus_reward = 0.
         self.turn_around_counter += 1
         self.actions_history.append(action)
