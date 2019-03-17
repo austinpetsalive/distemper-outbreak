@@ -29,22 +29,30 @@ sum_S2D_IS2D 68 15.5
 E2S 432 584.0
 E2IS 347 330.5
 S2I 111 131.5
-"""
 
-"""
 Final Results
 Maximum value: -0.177720
 Best parameters:  {'infection_kernel_0': 0.048877811938572956, 'infection_kernel_1': 0.01, 'pDieAlternate': 0.0025, 'pInfectIntake': 0.005, 'pInsusceptibleIntake': 0.025, 'pSusceptibleIntake': 0.05}
-
 Total Intake 847 934.5
 E2I 68 59.0
 sum_S2D_IS2D 68 81.5
 E2S 432 578.0
 E2IS 347 297.5
 S2I 111 131.5
+
+
+Final Results
+Maximum value: -0.133748
+Best parameters:  {'infection_kernel_0': 0.045234156049009, 'infection_kernel_1': 0.01, 'pDieAlternate': 0.0025, 'pInfectIntake': 0.005, 'pInsusceptibleIntake': 0.029339218966702094, 'pSusceptibleIntake': 0.05}
+Total Intake 847 941.5
+E2I 68 50.5
+sum_S2D_IS2D 68 82.0
+E2S 432 581.0
+E2IS 347 310.0
+S2I 111 123.5
 """
 
-best_params = {'infection_kernel_0': 0.048877811938572956, 'infection_kernel_1': 0.01, 'pDieAlternate': 0.0025, 'pInfectIntake': 0.005, 'pInsusceptibleIntake': 0.025, 'pSusceptibleIntake': 0.05}
+best_params = {'infection_kernel_0': 0.045234156049009, 'infection_kernel_1': 0.01, 'pDieAlternate': 0.0025, 'pInfectIntake': 0.005, 'pInsusceptibleIntake': 0.029339218966702094, 'pSusceptibleIntake': 0.05}
 
 def main(batch=False):
     '''This main function allows quick testing of the batch and non-batch versions
@@ -111,6 +119,13 @@ def main(batch=False):
             
     if not batch:
         print(params['intervention'])
+
+        params['pSusceptibleIntake'] = best_params['pSusceptibleIntake']
+        params['pInfectIntake'] = best_params['pInfectIntake']
+        params['pInsusceptibleIntake'] = best_params['pInsusceptibleIntake']
+        params['pDieAlternate'] = best_params['pDieAlternate']
+        params['infection_kernel'] = [best_params['infection_kernel_0'], best_params['infection_kernel_1']]
+        
         sim = simulation.Simulation(params,
                                     spatial_visualization=True,
                                     aggregate_visualization=True,
@@ -251,7 +266,7 @@ def main(batch=False):
 
         with warnings.catch_warnings():
             warnings.filterwarnings('ignore')
-            BO_wrapper.maximize(init_points=20, n_iter=20, acq='ei', xi=0.01)
+            BO_wrapper.maximize(init_points=20, n_iter=50, acq='ei', xi=0.01)
             
         print('-'*130)
         print('Final Results')
@@ -265,4 +280,4 @@ def main(batch=False):
             print(key, value, m_0[key])
 
 if __name__ == '__main__':
-    main(batch=True)#args.use_batch)
+    main(batch=args.use_batch)
