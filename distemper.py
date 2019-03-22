@@ -46,7 +46,7 @@ class Distemper(gym.Env):
         Consider early stopping if infection ratio is too high (Greater than 0.5)
     """
 
-    def __init__(self):
+    def __init__(self,**kwargs):
 
         self._reset_params()
         self.simulation = Simulation(self.params,
@@ -61,11 +61,16 @@ class Distemper(gym.Env):
         self.num_states = len(self.state_encoder.transform([[0, 1]])[0])
         self.observation_space = spaces.Discrete(self.num_states*self.num_nodes)
 
-        # Two incentive methods that allows the rl agent to advance the simulation
-        self.reward_bias = 10.0
-        self.bonus_reward = 0.
-        self.turn_around_rate = 10 # force 1 simulation update for every ? of non-forwarding actions taken 
+        self.reward_bias = 0.0 if kwargs.get('reward_bias') is None else kwargs.get('reward_bias')
+        
+        # Incentive method 1
+        self.bonus_reward = 0. if kwargs.get('bonus_reward') is None else kwargs.get('bonus_reward')
+        
+        # Incentive method 2
+        # turn_around_rate: force a simulation update for every turn_around_rate of non-0th actions taken
+        self.turn_around_rate = 200 if kwargs.get('turn_around_rate') is None else kwargs.get('turn_around_rate') 
         self.turn_around_counter = 0
+        
         self.incentive_methods = [0,1]
         
         # Action stats
@@ -164,7 +169,6 @@ class Distemper(gym.Env):
         _, num_infected = self._get_state_from_simulation()
 
         # Stats
-        self.reward_bias = 0
         self.bonus_reward = 0.
         self.turn_around_counter += 1
         self.actions_history.append(action)
@@ -229,7 +233,7 @@ class Distemper(gym.Env):
                                      return_on_equillibrium=True)
                                      
         # Two incentive methods that allows the rl agent to advance the simulation
-        self.reward_bias = 10.0
+        self.reward_bias = 0.0
         self.bonus_reward = 0. 
         self.turn_around_counter = 0
         
@@ -244,3 +248,21 @@ class Distemper(gym.Env):
 
     def close(self):
         self.simulation.running = False
+
+        
+class Distemper2(Distemper):
+
+    def __init__(self):
+        super(Distemper2,self).__init__()
+        
+    # The Observation State now includes i,j information with shape (#nodes,#states+1)
+    def _get_state_from_simulation(self):
+        states = []
+        num_infected = 0
+        for node in self.simulation.disease.graph.nodes:
+            states.append(self.simulation.disease.graph.nodes[node]['data']['occupant']['state'])
+            if states[-1] == 2:
+                num_infected += 1
+        embedded_states = [[x, 0] for x in states]
+        embedded_states[self.i][1],embedded_states[self.j][1] = 1,1
+        return FLATTEN(self.state_encoder.transform(embedded_states)), num_infected

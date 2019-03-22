@@ -126,11 +126,14 @@ def main(batch=False):
         params['pDieAlternate'] = best_params['pDieAlternate']
         params['infection_kernel'] = [best_params['infection_kernel_0'], best_params['infection_kernel_1']]
         
+        with open('./sim_params.json', 'w+') as out:
+            json.dump(params, out)
+        
         sim = simulation.Simulation(params,
                                     spatial_visualization=True,
                                     aggregate_visualization=True,
                                     return_on_equillibrium=True,)
-        print(sim.run())
+        #print(sim.run())
     else:
         # Run batch simulation comparing interventions
         
