@@ -94,7 +94,7 @@ def main(batch=False):
         sim = simulation.Simulation(params,
                                     spatial_visualization=True,
                                     aggregate_visualization=True,
-									return_on_equillibrium=True,)
+                                    return_on_equillibrium=True,)
         print(sim.run())
     else:
         # Run batch simulation comparing interventions
@@ -116,7 +116,7 @@ def main(batch=False):
             print(_p['intervention'])
             results = simulation.BatchSimulation(_p, runs).run()
             results_dataframe = pd.DataFrame.from_records(results)
-            results_dataframe = results_dataframe.drop(['S', 'IS', 'SY', 'D'], axis=1)
+            results_dataframe = results_dataframe.drop([col for col in results_dataframe.columns if col != "E" and col != "I"], axis=1)
             results_dataframe = results_dataframe.rename(index=str,
                                                          columns={"E": "Total Intake",
                                                                   "I": "Total Infected"})

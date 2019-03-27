@@ -146,6 +146,8 @@ class Distemper(gym.Env):
                 }
         with open('./sim_params.json', 'w+') as out:
             json.dump(self.params, out)
+            
+        print(self.params['intervention'])
         
     def seed(self, seed=None):
         self.np_random, seed = seeding.np_random(seed)
@@ -204,6 +206,7 @@ class Distemper(gym.Env):
 
         done = self.simulation.disease.end_conditions()
         reward = self.reward_bias - (new_num_infected - num_infected) + self.bonus_reward
+        reward *= 10
         
         return np.array(self.state), reward, done, {}
 
@@ -224,7 +227,7 @@ class Distemper(gym.Env):
         if action != None:
             print("Action #{}".format(action), end="\r")
         
-    def reset(self):
+    def reset(self, **kwargs):
         
         self._reset_params()
         self.simulation = Simulation(self.params,
@@ -232,9 +235,9 @@ class Distemper(gym.Env):
                                      aggregate_visualization=False,
                                      return_on_equillibrium=True)
                                      
-        # Two incentive methods that allows the rl agent to advance the simulation
-        self.reward_bias = 0.0
-        self.bonus_reward = 0. 
+        self.reward_bias = 0.0 if kwargs.get('reward_bias') is None else kwargs.get('reward_bias')       
+        self.bonus_reward = 0. if kwargs.get('bonus_reward') is None else kwargs.get('bonus_reward')
+        self.turn_around_rate = 200 if kwargs.get('turn_around_rate') is None else kwargs.get('turn_around_rate') 
         self.turn_around_counter = 0
         
         # Action stats
@@ -248,12 +251,11 @@ class Distemper(gym.Env):
 
     def close(self):
         self.simulation.running = False
-
         
 class Distemper2(Distemper):
 
-    def __init__(self):
-        super(Distemper2,self).__init__()
+    def __init__(self, **kwargs):
+        super(Distemper2,self).__init__(**kwargs)
         
     # The Observation State now includes i,j information with shape (#nodes,#states+1)
     def _get_state_from_simulation(self):
@@ -264,5 +266,5 @@ class Distemper2(Distemper):
             if states[-1] == 2:
                 num_infected += 1
         embedded_states = [[x, 0] for x in states]
-        embedded_states[self.i][1],embedded_states[self.j][1] = 1,1
+        embedded_states[self.i][1],embedded_states[self.j][1] = 1,-1
         return FLATTEN(self.state_encoder.transform(embedded_states)), num_infected
