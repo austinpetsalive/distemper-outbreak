@@ -3,37 +3,32 @@ import pandas as pd
 import gym
 
 from keras.models import Sequential
-from keras.layers import Dense, Activation, Flatten
+from keras.layers import Dense, Activation, Flatten, Dropout, Reshape
+from keras.layers import Conv1D, MaxPooling1D, GlobalAveragePooling1D
+from keras.layers import GRU 
 from keras.optimizers import Adam
 from rl.agents import *
 from rl.policy import *
 from rl.memory import *
 
-from distemper import Distemper
+#from distemper import Distemper as Distemper
+from distemper import Distemper2 as Distemper
 
 import tensorflow as tf
 from keras import backend as K
 
-
 """
-03/01/2019 Test stats over 30 episodes
-
-Mean
-Total Intake      971.666667
-Total Infected    143.866667
-Infection Rate      0.148088
-dtype: float64
-
-Std
-Total Intake      2.702206
-Total Infected    2.158508
-Infection Rate    0.002245
-dtype: float64
-Index(['Total Intake', 'Total Infected', 'Infection Rate'], dtype='object')
+	Actionable Items:
+	
+	Action Space
+	State Space
+	RL method
+	Network Architecture
+	Simulation method
 """
 
 def main(try_load_model=True):      
-    num_cores = 8
+    num_cores = 4
     config = tf.ConfigProto(intra_op_parallelism_threads=num_cores,
                             inter_op_parallelism_threads=num_cores, 
                             allow_soft_placement=True,
@@ -44,31 +39,28 @@ def main(try_load_model=True):
     K.set_session(session)
 
     # Get the environment and extract the number of actions available in the Cartpole problem
-    env = Distemper()
+    env = Distemper(turn_around_rate=20)
     np.random.seed(1234)
     env.seed(1234)
     nb_actions = env.action_space.n
-    batch = 200
+    batch = 1
 
+    # Build Model
     def agent(states, actions):
         model = Sequential()
-        model.add(Flatten(input_shape = (batch, states)))
-        model.add(Dense(256, activation='relu'))
-        model.add(Dense(128, activation='relu'))
-        model.add(Dense(32, activation='relu'))
+        model.add(GRU(64,input_shape=(1,states),recurrent_dropout=.5,return_sequences=True))
+        model.add(GRU(128,recurrent_dropout=.5,return_sequences=True))
+        model.add(Flatten(input_shape=(1,128)))
         model.add(Dense(actions, activation='linear'))
         return model
       
     model = agent(env.observation_space.n, env.action_space.n)
     print(model.summary())
 
-    policy = BoltzmannGumbelQPolicy(C=20)
+    policy = MaxBoltzmannQPolicy(eps=.5)
     test_policy = GreedyQPolicy()
-    memory = SequentialMemory(limit=50000, window_length=batch)
-    rl_agent = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, 
-                        nb_steps_warmup=1024,target_model_update=1e-2, 
-                        #enable_double_dqn=True, enable_dueling_network=True, dueling_type='avg',
-                        policy=policy, test_policy=test_policy)
+    memory = SequentialMemory(limit=10000, window_length=batch)
+    rl_agent = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, nb_steps_warmup=1024,target_model_update=1e-2, policy=policy, test_policy=test_policy)
     rl_agent.compile(Adam(lr=1e-4), metrics = ['mse'])
 
     def _get_nice_display_results(rl_agent, env, runs=4):
@@ -97,7 +89,7 @@ def main(try_load_model=True):
   
     # Train
     if try_load_model: 
-        rl_agent.load_weights('dqn_weights.h5f')
+        rl_agent.load_weights('CNNAgent_weights.h5f')
     else:
         rl_agent.fit(env, nb_steps=10000, visualize=False, verbose=1)
     
@@ -105,7 +97,7 @@ def main(try_load_model=True):
     m, s, c = _get_nice_display_results(rl_agent, env, runs=4)
     print(m), print(s), print(c)
 
-    rl_agent.save_weights('dqn_weights.h5f', overwrite=True)
+    rl_agent.save_weights('CNNAgent_weights.h5f', overwrite=True)
     
 if __name__ == "__main__":
     main(try_load_model=False)

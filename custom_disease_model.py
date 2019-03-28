@@ -547,7 +547,8 @@ class DistemperModel(object):
             node_id0 {int} -- the first node id
             node_id1 {int} -- the second node id
         '''
-
+        if node_id0 == node_id1:
+            return
         node0 = self.graph.nodes[node_id0]
         node1 = self.graph.nodes[node_id1]
         state0 = node0['data']['occupant']['state']

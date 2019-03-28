@@ -10,15 +10,34 @@ import numpy as np
 import pandas as pd
 import json
 
+from copy import deepcopy
+
+import tqdm
 import simulation
 
+import pickle as pkl
 import argparse
 
+from multiprocessing.pool import Pool
+
 parser = argparse.ArgumentParser()
-parser.add_argument("--use_batch", action='store_true', help="if True, the simulation will run a batch experiment")
+parser.add_argument("--mode", dest="mode", default="visual", help="can be 'batch' 'visual' or 'stats'")
 args = parser.parse_args()
 
-def main(batch=False):
+def stat_sim(params):
+    sim = simulation.Simulation(params,
+                                spatial_visualization=False,
+                                aggregate_visualization=False,
+                                return_on_equillibrium=True,)
+    results = []
+    # Manually reimplement the run loop so we can intercept the state over time
+    sim.running = True
+    while sim.running:
+        sim.update()
+        results.append((sim.disease.time, sim._get_disease_stats()))
+    return results
+
+def main(mode='visual'):
     '''This main function allows quick testing of the batch and non-batch versions
     of the simulation.
 
@@ -89,14 +108,28 @@ def main(batch=False):
         with open('./sim_params.json', 'w+') as out:
             json.dump(params, out)
             
-    if not batch:
+    if mode == 'visual':
         print(params['intervention'])
         sim = simulation.Simulation(params,
                                     spatial_visualization=True,
                                     aggregate_visualization=True,
-									return_on_equillibrium=True,)
+                                    return_on_equillibrium=True,)
         print(sim.run())
-    else:
+    elif mode == 'stats':
+        runs = 30
+        run_results = []
+        with Pool(8) as thread_pool:
+            tasks = tqdm.tqdm(thread_pool.imap_unordered(stat_sim,
+                                                         [deepcopy(params) for _ in
+                                                          range(0, runs)]),
+                              total=runs)
+            for i in tasks:
+                run_results.append(i)
+            thread_pool.close()
+            thread_pool.join()
+        with open('stats.pkl', 'wb') as fp:
+            pkl.dump(run_results, fp)
+    elif mode == 'batch':
         # Run batch simulation comparing interventions
         runs = 30
         bar_width = 0.25
@@ -116,7 +149,7 @@ def main(batch=False):
             print(_p['intervention'])
             results = simulation.BatchSimulation(_p, runs).run()
             results_dataframe = pd.DataFrame.from_records(results)
-            results_dataframe = results_dataframe.drop(['S', 'IS', 'SY', 'D'], axis=1)
+            results_dataframe = results_dataframe.drop([col for col in results_dataframe.columns if col != "E" and col != "I"], axis=1)
             results_dataframe = results_dataframe.rename(index=str,
                                                          columns={"E": "Total Intake",
                                                                   "I": "Total Infected"})
@@ -191,4 +224,6 @@ def main(batch=False):
 
 
 if __name__ == '__main__':
-    main(batch=args.use_batch)
+    assert args.mode in ['visual', 'batch', 'stats']
+    #main(mode=args.mode)
+    main(mode='stats')

@@ -110,10 +110,21 @@ class Distemper(gym.Env):
         self.num_states = len(self.state_encoder.transform([[0, 1]])[0])
         self.observation_space = spaces.Discrete(self.num_states*self.num_nodes)
 
-        self.reward_bias = 10.0
+        self.reward_bias = 5.0
+        
+        # Randomly initialize i and j
+        self.start_i = np.random.randint(0, self.num_nodes)
+        self.start_j = np.random.randint(0, self.num_nodes)
+        # If they happen to be equal, adjust j randomly up or down 1 (circling around to 0 if needed)
+        if self.start_i == self.start_j:
+            adjustment = -1 if bool(np.random.randint(2)) else 1
+            self.start_j = (self.start_j + adjustment) % self.num_nodes
+        self.i = self.start_i
+        self.j = self.start_j
 
-        self.i = 0
-        self.j = 1
+        # Rotation
+        self.k = 0
+        self.r = 0
 
         self.seed()
 
@@ -135,6 +146,12 @@ class Distemper(gym.Env):
     def _get_node_at_index(self, i):
         return list(self.simulation.disease.graph.nodes)[i]
 
+    def _get_next_state(self, i, k):
+        i_node = _get_node_at_index(i)
+
+    def _get_next_rotation(self, k):
+        i_node = _get_node_at_index(i)
+
     def step(self, action):
         assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
         
@@ -151,7 +168,7 @@ class Distemper(gym.Env):
             if self.i == self.j:
                 self.j = (self.i + self.j) % self.num_nodes
         elif action == 3:
-            self.simulation.disease.swap_cells(self._get_node_at_index(self.i), 
+            self.simulation.disease.swap_cells(self._get_node_at_index(self.i),
                                                self._get_node_at_index(self.j))
 
         new_state, new_num_infected = self._get_state_from_simulation()
@@ -159,7 +176,10 @@ class Distemper(gym.Env):
         self.state = new_state
 
         done = self.simulation.disease.end_conditions()
-        reward = self.reward_bias - (new_num_infected - num_infected)
+        if action == 0:
+            reward = self.reward_bias - (new_num_infected - num_infected)
+        else:
+            reward = 0
 
         return np.array(self.state), reward, done, {}
 
