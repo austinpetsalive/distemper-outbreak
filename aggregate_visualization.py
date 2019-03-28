@@ -6,6 +6,7 @@ import sys
 import pyqtgraph as pg # pylint: disable=E0401
 from pyqtgraph.Qt import QtCore, QtGui # pylint: disable=E0401
 
+import numpy as np
 
 class AggregatePlot(object):
     '''This class renders aggregate variables from a disease simulation.
@@ -97,8 +98,13 @@ class AggregatePlot(object):
         self.data['imm'].append(survived_nodes)
         self.data['die'].append(died_nodes)
 
-        self.data['ir'].append(self.disease.total_infected/self.disease.total_intake)
-        self.data['sr'].append(self.disease.total_discharged/self.disease.total_intake)
+        if self.disease.total_intake != 0:
+            self.data['ir'].append(self.disease.total_infected/self.disease.total_intake)
+            self.data['sr'].append(self.disease.total_discharged/self.disease.total_intake)
+        else:
+            self.data['ir'].append(np.nan)
+            self.data['sr'].append(np.nan)
+        
 
         for curve, data in zip(self.curves, [self.data['tpop'], self.data['pop'],
                                              self.data['tinf'], self.data['inf'], self.data['ir'],

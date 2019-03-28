@@ -46,10 +46,10 @@ def main(mode='visual'):
     '''
     np.random.seed(1234)
     
-    if os.path.exists('./sim_params.json'):
-        with open('./sim_params.json') as f:
+    if os.path.exists('./realistic_sim_params.json'):
+        with open('./realistic_sim_params.json') as f:
             params = json.load(f)
-            print("Loaded ./sim_params.json"+"-"*30)
+            print("Loaded ./realistic_sim_params.json"+"-"*30)
 
     else:
         # Note: all probabilities are in units p(event) per hour
@@ -113,7 +113,11 @@ def main(mode='visual'):
         sim = simulation.Simulation(params,
                                     spatial_visualization=True,
                                     aggregate_visualization=True,
+<<<<<<< Updated upstream
                                     return_on_equillibrium=True,)
+=======
+									return_on_equillibrium=False,)
+>>>>>>> Stashed changes
         print(sim.run())
     elif mode == 'stats':
         runs = 30
@@ -136,7 +140,7 @@ def main(mode='visual'):
         colors = [cm.jet(0), cm.jet(0.33), cm.jet(0.66)] #pylint: disable=E1101
         alphas = [0.75, 0.5, 0.25]
         labels = ['Room Lock Intervention', 'Snake Intervention', 'No Intervention']
-
+        print(params)
         params['intervention'] = 'RoomLockIntervention()'
 
         params1 = copy(params)
@@ -224,6 +228,10 @@ def main(mode='visual'):
 
 
 if __name__ == '__main__':
+<<<<<<< Updated upstream
     assert args.mode in ['visual', 'batch', 'stats']
     #main(mode=args.mode)
     main(mode='stats')
+=======
+    main(batch=False)#args.use_batch)
+>>>>>>> Stashed changes
