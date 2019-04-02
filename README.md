@@ -82,3 +82,9 @@ Additionally, a simulation of the kennel network states can be seen here:
 ## Batch Simulation
 Finally, when run in batch mode, different strategies can be compared which intervene in position. Here, animals are sorted by immunity to avoid infection of new dogs. This intervention is compared to no intervention:
 ![Comparison of Methods](https://github.com/austinpetsalive/distemper-outbreak/blob/master/media/30_intervention_compairson.png?raw=true)
+
+## Current Agent
+
+The current agent performance on a single instance of a single time point of a single graph:
+
+![Model Performance](https://github.com/austinpetsalive/distemper-outbreak/raw/master/download%20(1).png)
