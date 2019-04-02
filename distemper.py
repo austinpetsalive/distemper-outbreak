@@ -17,6 +17,35 @@ from sklearn.preprocessing import OneHotEncoder
 
 FLATTEN = lambda l: [item for sublist in l for item in sublist]
 
+FIXED_STATE = [1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0,
+ 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0,
+ 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0,
+ 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0,
+ 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0,
+ 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
+ 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1,
+ 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0,
+ 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0,
+ 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1,
+ 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0,
+ 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0,
+ 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0,
+ 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1,
+ 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0,
+ 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0,
+ 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0,
+ 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0,
+ 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0,
+ 1, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0,
+ 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1,
+ 0, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0,
+ 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0,
+ 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 0,
+ 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0,
+ 0, 1, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 1,
+ 0, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 1, 0, 0,
+ 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1]
+
 class Distemper(gym.Env):
     """
     Description:
@@ -62,6 +91,10 @@ class Distemper(gym.Env):
         self.action_space = spaces.Discrete(8)
         self.num_states = len(self.state_encoder.transform([[0, 1]])[0])
         self.observation_space = spaces.Discrete(self.num_states*self.num_nodes+4)
+        
+        # for i in range(0, 500): # Warm up to time point 500
+        #     self.simulation.update()
+        self._set_state_from_simulation(FIXED_STATE)
 
         #self.reward_bias = 5.0 if kwargs.get('reward_bias') is None else kwargs.get('reward_bias')
         
@@ -182,6 +215,10 @@ class Distemper(gym.Env):
                 num_infected += 1
         return np.concatenate((np.array(FLATTEN(self.state_encoder.transform([[x, 1] for x in states]))), np.array([self.i, self.j, self.k, self.r]))), num_infected
 
+    def _set_state_from_simulation(self, states):
+        for state, node in zip(states, self.simulation.disease.graph.nodes):
+            self.simulation.disease.graph.nodes[node]['data']['occupant']['state'] = state
+
     def _get_node_at_index(self, i):
         return list(self.simulation.disease.graph.nodes)[i]
 
@@ -251,6 +288,7 @@ class Distemper(gym.Env):
         elif action == 7:
             self.simulation.disease.swap_cells(self._get_node_at_index(self.i), 
                                                self._get_node_at_index(self.j))
+            #self.i = self.i
             #reward = np.clip(self.max_expected_swaps-self.swaps_this_hour, -1, self.max_expected_swaps)
             #self.swaps_this_hour += 1
         
@@ -264,21 +302,30 @@ class Distemper(gym.Env):
 
         self.state = new_state
 
-        done = self.simulation.disease.end_conditions()
+        done = update#self.simulation.disease.end_conditions()
         
-        # infection_rate = 0.18 # Chance
-        results = self.simulation._get_disease_stats()
-        if results['E'] <= 0 or self.simulation.disease.time <= 24:
+        if not done:
             reward = 0
         else:
-            infection_rate = results['I'] / results['E']
-            infection_rate_scaler = 100 # Higher means more gradual reward increases as infection rate approaches 0.0
-            reward_scaler = 1000.0 # Scaling the magnitude of the reward (only impacts absolute magnitude of reward)
-            a, b, c, d = [2.95735301, 46.32006702, -72.55387083, 98.66898389]
-            infection_rate_chance = np.arctan((self.simulation.disease.time+d)*a)*b+c
-            reward_offset = np.exp((1.0 - infection_rate_scaler)/(infection_rate_scaler*infection_rate_chance))
-            reward = reward_scaler*(np.exp((1.0/infection_rate/infection_rate_scaler) - (1.0/infection_rate_chance))-reward_offset)
-            reward = np.clip(reward, -10, 10)
+            reward = num_infected - new_num_infected
+
+        # infection_rate = 0.18 # Chance
+        # if update:
+        #     results = self.simulation._get_disease_stats()
+        #     if results['E'] <= 0 or self.simulation.disease.time <= 24:
+        #         reward = 0
+        #     else:
+        #         infection_rate = results['I'] / results['E']
+        #         infection_rate_scaler = 100 # Higher means more gradual reward increases as infection rate approaches 0.0
+        #         reward_scaler = 1000.0 # Scaling the magnitude of the reward (only impacts absolute magnitude of reward)
+        #         a, b, c, d = [2.95735301, 46.32006702, -72.55387083, 98.66898389]
+        #         infection_rate_chance = np.arctan((self.simulation.disease.time+d)*a)*b+c
+        #         reward_offset = np.exp((1.0 - infection_rate_scaler)/(infection_rate_scaler*infection_rate_chance))
+        #         reward = reward_scaler*(np.exp((1.0/infection_rate/infection_rate_scaler) - (1.0/infection_rate_chance))-reward_offset)
+        #         reward = np.clip(reward, -10, 10)
+        # else:
+        #     reward = 0
+
 
         #infected_delta = (new_num_infected - num_infected)
         #if update:
@@ -313,7 +360,7 @@ class Distemper(gym.Env):
         action = kwargs.get('action')
         if action != None:
             print("Action #{}".format(action), end="\r")
-        
+
     def reset(self, **kwargs):
         
         self._reset_params()
@@ -327,6 +374,10 @@ class Distemper(gym.Env):
         self.turn_around_rate = 400 if kwargs.get('turn_around_rate') is None else kwargs.get('turn_around_rate') 
         self.turn_around_counter = 0
         
+        #for i in range(0, 500): # Warm up to time point 500
+        #    self.simulation.update()
+        self._set_state_from_simulation(FIXED_STATE)
+
         # Action stats
         self.actions_history = []
         self.turn_around_actions_history = []
@@ -336,6 +387,7 @@ class Distemper(gym.Env):
         self.k = 0
         self.r = 0
         self.state, _ = self._get_state_from_simulation()
+        # print(self.state[0:-4])
         return np.array(self.state)
 
     def close(self):

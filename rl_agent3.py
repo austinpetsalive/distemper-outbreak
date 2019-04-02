@@ -62,7 +62,7 @@ def main(try_load_model=True):
     model = agent(env.observation_space.n, env.action_space.n)
     print(model.summary())
 
-    policy = BoltzmannGumbelQPolicy(C=20)
+    policy = BoltzmannGumbelQPolicy(C=2)
     test_policy = GreedyQPolicy()
     memory = SequentialMemory(limit=50000, window_length=batch)
     rl_agent = DQNAgent(model=model, nb_actions=nb_actions, memory=memory, 
@@ -99,10 +99,10 @@ def main(try_load_model=True):
     if try_load_model: 
         rl_agent.load_weights('dqn_weights.h5f')
     else:
-        rl_agent.fit(env, nb_steps=10000, visualize=False, verbose=1)
+        rl_agent.fit(env, nb_steps=500000, visualize=False, verbose=1)
     
     # Test
-    m, s, c = _get_nice_display_results(rl_agent, env, runs=4)
+    m, s, c = _get_nice_display_results(rl_agent, env, runs=30)
     print(m), print(s), print(c)
 
     rl_agent.save_weights('dqn_weights.h5f', overwrite=True)

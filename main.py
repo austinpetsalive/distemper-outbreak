@@ -113,11 +113,7 @@ def main(mode='visual'):
         sim = simulation.Simulation(params,
                                     spatial_visualization=True,
                                     aggregate_visualization=True,
-<<<<<<< Updated upstream
                                     return_on_equillibrium=True,)
-=======
-									return_on_equillibrium=False,)
->>>>>>> Stashed changes
         print(sim.run())
     elif mode == 'stats':
         runs = 30
@@ -228,10 +224,6 @@ def main(mode='visual'):
 
 
 if __name__ == '__main__':
-<<<<<<< Updated upstream
     assert args.mode in ['visual', 'batch', 'stats']
     #main(mode=args.mode)
-    main(mode='stats')
-=======
-    main(batch=False)#args.use_batch)
->>>>>>> Stashed changes
+    main(mode='visual')
