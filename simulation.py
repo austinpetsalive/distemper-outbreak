@@ -83,6 +83,28 @@ class Simulation(object):
             self.plt = AggregatePlot(self.disease, self.kennels)
             self.update_hooks.append(self.plt.update)
 
+    @staticmethod
+    def copy(simulation):
+        '''Performs a deep copy of the simulation
+
+        Arguments:
+            simulation {Simulation} -- the simulation to copy
+
+        Returns:
+            Simulation -- the copy of the simulation
+        '''
+        
+        new_simulation = Simulation(simulation.params, simulation.spatial_visualization, simulation.aggregate_visualization, simulation.return_on_equillibrium)
+        new_simulation.kennels = deepcopy(simulation.kennels)
+        new_simulation.disease = DistemperModel(new_simulation.kennels.get_graph(), new_simulation.params)
+        
+        if simulation.aggregate_visualization:
+            new_simulation.plt = AggregatePlot(new_simulation.disease, new_simulation.kennels)
+            new_simulation.update_hooks.append(new_simulation.plt.update)
+        
+        return new_simulation
+        
+            
     def _check_events(self):
         for event in pygame.event.get():
             if event.type == pgl.QUIT: #pylint: disable=E1101
@@ -122,6 +144,34 @@ class Simulation(object):
                 'E2IS': self.disease.E2IS,
                 'S2I': self.disease.S2I
                 }
+                
+    @staticmethod
+    def look_ahead(simulation, n=1, samples=1):
+        '''This function creates a copy of the simulation as it is right now then
+        iterates the simulation n times. It will perform this operation as many
+        times as specified by sample then provide the list of results.
+
+        Arguments:
+            n {int} -- the number of steps to look ahead
+
+        Keyword Arguments:
+            sample {int} -- the number of times to try looking ahead (default: {1})
+
+        Returns:
+            list(list(float)) -- a list of the results (total intake, total infected)
+            for each sample at time step t0+n where t0 is the current simulation state
+        '''
+    
+        simulation_copy = Simulation.copy(simulation)
+        results = []
+        
+        for _ in range(0, samples):
+            sim = Simulation.copy(simulation_copy)
+            for _ in range(0, n):
+                sim.update()
+            results.append([sim.disease.total_intake, sim.disease.total_infected])
+            
+        return results
 
     def update(self):
         '''Update the simulation and redraw.

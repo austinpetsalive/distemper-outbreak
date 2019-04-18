@@ -92,8 +92,10 @@ class Distemper(gym.Env):
         self.num_states = len(self.state_encoder.transform([[0, 1]])[0])
         self.observation_space = spaces.Discrete(self.num_states*self.num_nodes+4)
         
-        # for i in range(0, 500): # Warm up to time point 500
-        #     self.simulation.update()
+        if kwargs.get('warm_up'):
+            for i in range(0, 500): # Warm up to time point 500
+                self.simulation.update()
+        self.base_chance_rate = self._sample_chance_rate(samples=33)
         self._set_state_from_simulation(FIXED_STATE)
 
         #self.reward_bias = 5.0 if kwargs.get('reward_bias') is None else kwargs.get('reward_bias')
@@ -244,6 +246,14 @@ class Distemper(gym.Env):
             if i in component:
                 return self.components[(idx-1)%len(self.components)][0]
 
+    def _sample_chance_rate(self, n=1, samples=33, verbose=True):
+        results = Simulation.look_ahead(self.simulation,n=1,samples=samples)
+        chance_rate = sum([res[1]*1./res[0] if res[0] != 0 else 0 for res in results])/len(results)
+        
+        if verbose: print("\n Chance rate at 500 hours is ", chance_rate)
+        
+        return chance_rate
+                
     def step(self, action):
         assert self.action_space.contains(action), "%r (%s) invalid"%(action, type(action))
 
@@ -255,8 +265,13 @@ class Distemper(gym.Env):
         self.actions_history.append(action)
         update = False
         #reward = 0
+        
+        chance_rate = None
+        
         if action == 0:
-            self.simulation.update()
+            chance_rate = self._sample_chance_rate()
+            #self.simulation.update()
+            
             update = True
             if self.incentive_methods[0]:
                 self.bonus_reward = 1.0 # Bonus reward method
@@ -293,7 +308,9 @@ class Distemper(gym.Env):
             #self.swaps_this_hour += 1
         
         if action != 0 and self.incentive_methods[1] and (self.turn_around_counter % self.turn_around_rate == 0):
-            self.simulation.update()
+            chance_rate = self._sample_chance_rate()
+            #self.simulation.update()
+            
             self.turn_around_counter = 0
             self.actions_history.append(-1) # Add force update indicator in the action history
             update = True
@@ -302,7 +319,7 @@ class Distemper(gym.Env):
 
         self.state = new_state
 
-        done = update#self.simulation.disease.end_conditions()
+        done = self.simulation.disease.end_conditions() #update
         
         if not done:
             reward = 0
@@ -360,7 +377,7 @@ class Distemper(gym.Env):
         action = kwargs.get('action')
         if action != None:
             print("Action #{}".format(action), end="\r")
-
+            
     def reset(self, **kwargs):
         
         self._reset_params()
@@ -374,8 +391,10 @@ class Distemper(gym.Env):
         self.turn_around_rate = 400 if kwargs.get('turn_around_rate') is None else kwargs.get('turn_around_rate') 
         self.turn_around_counter = 0
         
-        #for i in range(0, 500): # Warm up to time point 500
-        #    self.simulation.update()
+        if kwargs.get('warm_up'):
+            for i in range(0, 500): # Warm up to time point 500
+                self.simulation.update()
+        self.base_chance_rate = self._sample_chance_rate(samples=33)
         self._set_state_from_simulation(FIXED_STATE)
 
         # Action stats
